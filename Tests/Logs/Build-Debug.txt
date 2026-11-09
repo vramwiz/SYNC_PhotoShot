@@ -1,0 +1,5 @@
+  Embarcadero Delphi for Win64 compiler version 37.0
+  Copyright (c) 1983,2026 Embarcadero Technologies, Inc.
+Source\Lib\Audio\Core\MP3ScaleFactors.pas(167): ヒント warning H2077: 'modprod' に代入された値は使われていません [D:\DelphiProg\MyApp\SYNC_PhotoShot\SYNC_PhotoShot.dproj]
+Source\Lib\Audio\Core\MP3Layer3.pas(730): ヒント warning H2077: 'sr_idx' に代入された値は使われていません [D:\DelphiProg\MyApp\SYNC_PhotoShot\SYNC_PhotoShot.dproj]
+  4765 行、0.36 秒、1624576 バイト コード、218960 バイト データ。

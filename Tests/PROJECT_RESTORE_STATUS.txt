@@ -1,0 +1,45 @@
+﻿SYNC_PhotoShot 現行検証結果 2026-11-09
+対象: 元Nicomea構造に戻した通常auf2（旧aux2結果と区別）
+
+1. 枠組み
+- .dproj は名称と21ユニット参照を除き元ファイル全文と一致。
+- .dpr は名称・コメント・usesを除き元ファイル全文と一致。
+- DLL exports は元と同じ3関数。主 .res は元とSHA256一致。
+- 元設定のBT_BuildType、GUID、除外パッケージ、Debugger、4箇所ビルドイベントを保持。
+- 元のDebugger先2.1.3aでは現在要求する2.1.15以降の機能は使えない。設定は指示どおり維持。
+
+2. 再実装
+- 通常ボタンcallback2で写真準備をarmし、正規カーソル移動APIを使用。
+- HostApp/非同期シーン描画/aux2/補助pluginは不要。
+- 入力callbackで対象/scene/時刻/range/layer/origin/寸法等を照合し保存。
+- 再準備・要求切替・全破棄・対象破棄で旧要求を解除。待機30秒の上限。
+- 編集後の完全自動失効は保証しない。書出し前に準備済み確認必須。
+- ユーザー4音を専用音声resへ内蔵。主resやdpr/dproj設定を変えない。
+- 原MP3とresバイト完全一致、file/resourceデコードPCM完全一致。
+
+3. 成功した検証
+- Debug/Release 本体Build、PostBuildEvent無効。上流decoder H2077 hint2件のみ。
+- StandaloneAuf2/Debug と Release にauf2 1ファイルだけ配置。外部MP3なし。
+- 両構成: HostTests 49,154,939 assertions。
+  動画callback、4音、48kHz変換、余韻、逆順sample block同値など。
+- 両構成: PreparationTests 218 assertions。
+  明示準備必須、複数object/effect、再準備、全破棄、要求切替、
+  誤時刻/scene/origin/参照描画/editframe/寸法を拒否。
+  カーソル移動内の同期描画再入、要求対象破棄、同ID再生成時の旧要求不復活。
+- 既存独立EXE再実行: Timeline107764 / AudioMix73946 / PreparedStore569 / Render142ケース。
+- テストモジュールは全て解放済み。これらは非プラグインEXE、実AviUtl2ではない。
+
+4. 未確認
+- IDEオプション画面の表示。ファイル一致とBuildのみ確認。
+- 実AviUtl2のカーソル移動後再描画、写真準備、任意シーク、書出し。
+- フィルタオブジェクト単体での実ホスト音声callback。
+- 30秒timeoutの実時間経過試験（コードは実装、今回未実行）。
+- 準備中直ちに書出しした場合の状態識別は公開auf2 APIでは完全保証できない。
+- プロジェクトに写真は保存しない。再読込・編集後は再準備する。
+
+5. 保護
+- Nicomea/Mine/RhythmShooter元プロジェクト、ユーザーMp3原本、Setupは変更なし。
+- 変更前: Backup/BeforeReferenceRebuild_20261109_101022。
+- 旧aux2出力は同Backup/LegacyAux2へ退避。現行成果物はWin64/Debug,Release/SYNC_PhotoShot.auf2。
+- 今回はProgramDataへの配備、実ホスト起動、追加plugin作成実行を行っていない。
+- 以前の中止済みhelper試験は無効化済みのまま。再開していない。

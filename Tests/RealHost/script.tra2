@@ -1,0 +1,33 @@
+@反復移動
+--twopoint
+--timecontrol
+--param:15
+local param = math.max(1,obj.getpoint("param"))
+local s = obj.getpoint(0)
+local e = obj.getpoint(1)
+local r = obj.getpoint("timecontrol","time") * obj.getpoint("framerate") * math.pi / param
+return s + (e-s) * (1-math.cos(r)) * 0.5
+
+@回転
+--twopoint
+--timecontrol
+--param:360
+local index = obj.getpoint("timecontrol","index")
+local link = obj.getpoint("link")
+local num = obj.getpoint("param")
+if( link == 0 ) then
+	x = obj.getpoint(0,0) - obj.getpoint(1,0)
+	y = obj.getpoint(0,1) - obj.getpoint(1,1)
+	l = math.sqrt(x*x+y*y)
+	r = math.atan2(x,-y)
+	r = r + math.pi*index*num/180
+	return obj.getpoint(1,0) + l*math.sin(r)
+elseif( link == 1 ) then
+	x = obj.getpoint(0,-1) - obj.getpoint(1,-1)
+	y = obj.getpoint(0,0) - obj.getpoint(1,0)
+	l = math.sqrt(x*x+y*y)
+	r = math.atan2(x,-y)
+	r = r + math.pi*index*num/180
+	return obj.getpoint(1,0) - l*math.cos(r)
+end
+return 0

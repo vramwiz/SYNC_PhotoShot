@@ -1,0 +1,10 @@
+mpeg1_44100_stereo_cbr128: PASS rate=44100 channels=2 native_frames=30870 float_frames=30870 peak=0.085449 gapless=TRUE
+mpeg1_48000_stereo_vbr: PASS rate=48000 channels=2 native_frames=33600 float_frames=30870 peak=0.088959 gapless=TRUE
+mpeg1_32000_mono_cbr64: PASS rate=32000 channels=1 native_frames=22400 float_frames=30870 peak=0.084351 gapless=TRUE
+mpeg2_24000_stereo_cbr64: PASS rate=24000 channels=2 native_frames=16800 float_frames=30870 peak=0.087250 gapless=TRUE
+mpeg2_22050_mono_vbr: PASS rate=22050 channels=1 native_frames=15435 float_frames=30870 peak=0.090851 gapless=TRUE
+mpeg2_16000_mono_cbr32: PASS rate=16000 channels=1 native_frames=11200 float_frames=30870 peak=0.084656 gapless=TRUE
+mpeg25_12000_stereo_cbr32: PASS rate=12000 channels=2 native_frames=8400 float_frames=30870 peak=0.086243 gapless=TRUE
+mpeg25_11025_mono_cbr24: PASS rate=11025 channels=1 native_frames=7718 float_frames=30872 peak=0.085663 gapless=TRUE
+mpeg25_8000_mono_cbr16: PASS rate=8000 channels=1 native_frames=5600 float_frames=30870 peak=0.084717 gapless=TRUE
+invalid.mp3: expected rejection: EMP3DecodeError: No decodable MPEG Layer III audio.

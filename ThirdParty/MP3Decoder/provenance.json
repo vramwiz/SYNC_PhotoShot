@@ -1,0 +1,31 @@
+{
+  "commit": "849dbaf1892486a6dc5f1ebb555c949a6c4dd4d9",
+  "repository": "https://github.com/gustavoeenriquez/delphi-libraries",
+  "license": "CC0-1.0",
+  "files": [
+    {
+      "sha256": "F37E3A3BAB70C5C8D2FC9504BA50F2570D8E644E50941083D3706C8D0C67C00D",
+      "file": "MP3Types.pas"
+    },
+    {
+      "sha256": "1331606C12C921D3B9B45A1EB92288D15B29E8CF073D83362B24AA886514BB85",
+      "file": "MP3BitStream.pas"
+    },
+    {
+      "sha256": "E771614EA55DB4065CC3043128BCF8DF29D023624E273B4496FAF738FE0D3029",
+      "file": "MP3Frame.pas"
+    },
+    {
+      "sha256": "A903E56040DE3327FF27E77DE34BF3E0B5B585D1ABC3317A5DAAB243F14F8976",
+      "file": "MP3Huffman.pas"
+    },
+    {
+      "sha256": "1CBC8613065ACDC597D7F8637115D1A2311EECD29013CC98095FE327ABAD5980",
+      "file": "MP3ScaleFactors.pas"
+    },
+    {
+      "sha256": "09FDFCD52EFF89F430A9D49A694E44F84A043C22AAE0D26402284B60F82CDC81",
+      "file": "MP3Layer3.pas"
+    }
+  ]
+}

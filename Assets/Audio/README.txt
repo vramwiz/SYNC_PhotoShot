@@ -1,0 +1,1 @@
+﻿PhotoShot 初期音源: smartphone / compact / dslr / instant。サイン波と固定乱数ノイズによる独自合成音。外部録音・第三者素材は使用していません。実機の録音ではなく、交換可能な暫定効果音です。MP3は44100Hz stereo/128kbps。元WAVはTests/AudioSources。生成時のみ既存FFmpegを使用し、製品再生時は純Delphi MP3デコーダーを使用します。

@@ -1,0 +1,9 @@
+mpeg1_32000_mono_cbr64.mp3: length match; max_pcm16_error=1 rms_error=0.0458 SNR_dB=95.57
+mpeg1_44100_stereo_cbr128.mp3: length match; max_pcm16_error=1 rms_error=0.0322 SNR_dB=95.62
+mpeg1_48000_stereo_vbr.mp3: length match; max_pcm16_error=1 rms_error=0.0327 SNR_dB=95.92
+mpeg2_16000_mono_cbr32.mp3: length match; max_pcm16_error=1 rms_error=0.0401 SNR_dB=96.73
+mpeg2_22050_mono_vbr.mp3: length match; max_pcm16_error=1 rms_error=0.0426 SNR_dB=96.65
+mpeg2_24000_stereo_cbr64.mp3: length match; max_pcm16_error=1 rms_error=0.0423 SNR_dB=93.26
+mpeg25_11025_mono_cbr24.mp3: length match; max_pcm16_error=1 rms_error=0.0496 SNR_dB=94.88
+mpeg25_12000_stereo_cbr32.mp3: length match; max_pcm16_error=1 rms_error=0.0463 SNR_dB=92.47
+mpeg25_8000_mono_cbr16.mp3: length match; max_pcm16_error=1 rms_error=0.0327 SNR_dB=98.49
