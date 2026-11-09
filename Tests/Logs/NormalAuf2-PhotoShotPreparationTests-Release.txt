@@ -1,2 +1,0 @@
-PASS: 218 normal-auf2 preparation mock assertions. Module unloaded.
-Independent EXE only; not actual AviUtl2 behavior. No message pumping.

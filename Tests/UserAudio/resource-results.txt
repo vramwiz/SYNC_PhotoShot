@@ -1,7 +1,0 @@
-PASS existing PLATFORMTARGETS
-PASS PHOTOSHOT_SMARTPHONE bytes=917365 frames=132300 seconds=3.000
-PASS PHOTOSHOT_COMPACT bytes=504125 frames=132300 seconds=3.000
-PASS PHOTOSHOT_DSLR bytes=793458 frames=132300 seconds=3.000
-PASS PHOTOSHOT_INSTANT bytes=904546 frames=220500 seconds=5.000
-PASS all resources match original MP3 and file-decoded PCM exactly.
-No temporary audio files or external MP3 folders were used for resource decoding.

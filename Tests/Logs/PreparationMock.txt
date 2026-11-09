@@ -1,2 +1,0 @@
-PASS: 87 preparation mock-host assertions; DLL unloaded.
-Mock only, not an actual AviUtl2 host test.

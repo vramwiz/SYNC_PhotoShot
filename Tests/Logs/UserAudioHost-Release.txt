@@ -1,2 +1,0 @@
-PASS: 49154935 mock-host assertions. DLL unloaded.
-This validates a mocked SDK ABI, not actual AviUtl2 host behavior.

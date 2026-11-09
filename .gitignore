@@ -10,3 +10,12 @@ __history/
 *.tds 
 *.dsk 
 .DS_Store 
+
+# Local test workspace (including test sources and generated results)
+/Tests/
+
+# Runtime and build logs
+*.log
+*.tlog
+[Ll]og/
+[Ll]ogs/
