@@ -1,7 +1,7 @@
 ﻿unit SYNC_PhotoShot_FilterPlugin;
 
 // 標準パラメータ、現在フレームの取得、カメラ演出の描画を接続する。
-// 写真は明示的な事前準備で採取した入力だけを使用し、任意シークの順に依存しない。
+// カメラ内のライブビューだけを描画し、撮影写真の採取・保持・表示は行わない。
 interface
 
 uses
@@ -21,7 +21,7 @@ uses
   System.SysUtils, System.Classes, System.IOUtils, System.SyncObjs, Winapi.Windows, Winapi.GDIPAPI,
   Winapi.GDIPOBJ, PluginFilterTable, SYNC_PhotoShot_Parameters,
   SYNC_PhotoShot_Timeline, SYNC_PhotoShot_Capture, SYNC_PhotoShot_Renderer,
-  SYNC_PhotoShot_Audio, SYNC_PhotoShot_Preparation;
+  SYNC_PhotoShot_Audio;
 
 type
   TPhotoShotSession = class
@@ -58,8 +58,6 @@ function StartPhotoShotGraphics: Boolean;
 begin
   TraceInitialization('Start');
   try
-    InitializePhotoShotPreparation;
-    TraceInitialization('Preparation initialized');
     InitializePhotoShotAudio;
     TraceInitialization('Audio initialized');
     Result := True;
@@ -85,7 +83,6 @@ end;
 
 procedure StopPhotoShotGraphics;
 begin
-  FinalizePhotoShotPreparation;
   ReleasePhotoShotAudio;
 end;
 
@@ -143,24 +140,17 @@ end;
 
 procedure TPhotoShotSession.Render(Video: PFILTER_PROC_VIDEO);
 var
-  Current, Snapshot, Output: TGPBitmap;
-  Settings, CapturedSettings: TPhotoShotSettings;
-  State: TPhotoShotState;
+  Current, Output: TGPBitmap;
+  Settings: TPhotoShotSettings;
 begin
   if Video^.Scene = nil then Exit;
   Settings := ReadPhotoShotParameters(Video^.Scene^.Rate, Video^.Scene^.Scale);
   Current := CapturePhotoShotInput(Video);
   if Current = nil then Exit;
-  Snapshot := nil;
   try
-    // 明示要求と一致する通常描画入力だけ採取し、そのまま同フレームの演出を続ける。
-    if InterceptPhotoShotInput(Video,Current,Settings) then Exit;
-    State := EvaluatePhotoShot(Settings,Video^.Object_^.Frame,Current.GetWidth,Current.GetHeight);
-    Snapshot := CopyPreparedPhotoShot(Video,State.ShutterFrame,CapturedSettings);
-    Output := FRenderer.Render(Current,Snapshot,Settings,Video^.Object_^.Frame,@CapturedSettings);
+    Output := FRenderer.Render(Current,Settings,Video^.Object_^.Frame);
     WriteImage(Video,Output);
   finally
-    Snapshot.Free;
     Current.Free;
   end;
 end;
@@ -200,7 +190,6 @@ end;
 procedure PhotoShotDestroy(EffectID: Int64; UserData: Pointer); cdecl;
 begin
   try
-    RemovePreparedPhotoShot(EffectID);
     TPhotoShotSession(UserData).Free;
   except
     on E: Exception do OutputDebugString(PChar('SYNC_PhotoShot destroy: ' + E.Message));
@@ -212,10 +201,9 @@ begin
   if not PluginTableInitialized then
   begin
     SetupPluginTable(FILTER_FLAG_VIDEO or 2 or FILTER_FLAG_FILTER or FILTER_FLAG_USERDATA,
-      '写真撮影', 'SYNC', '写真を準備して撮影演出を再現（編集後は再準備）',
+      '写真撮影', 'SYNC', 'カメラ内ライブビューと撮影演出',
       PhotoShotProcVideo, PhotoShotProcAudio);
     RegisterPhotoShotParameters;
-    RegisterPhotoShotPreparationButtons;
     GetPluginTable^.Func_Create := PhotoShotCreate;
     GetPluginTable^.Func_Destroy := PhotoShotDestroy;
     PluginTableInitialized := True;

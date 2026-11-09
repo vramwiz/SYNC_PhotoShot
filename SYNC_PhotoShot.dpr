@@ -5,9 +5,6 @@
 {$ALIGN 8}
 
 uses
-  SYNC_PhotoShot_Preparation in 'Source\Plugin\Filter\SYNC_PhotoShot_Preparation.pas',
-  SYNC_PhotoShot_PreparedStore in 'Source\Common\SYNC_PhotoShot_PreparedStore.pas',
-  SYNC_PhotoShot_HostAPI in 'Source\Lib\SYNC_PhotoShot_HostAPI.pas',
   MP3Types in 'Source\Lib\Audio\Core\MP3Types.pas',
   MP3ScaleFactors in 'Source\Lib\Audio\Core\MP3ScaleFactors.pas',
   MP3Layer3 in 'Source\Lib\Audio\Core\MP3Layer3.pas',
@@ -61,8 +58,7 @@ end;
 exports
   InitializePlugin name 'InitializePlugin',
   UninitializePlugin name 'UninitializePlugin',
-  GetFilterPluginTable name 'GetFilterPluginTable',
-  SetPhotoShotLogger name 'InitializeLogger';
+  GetFilterPluginTable name 'GetFilterPluginTable';
 
 begin
 end.

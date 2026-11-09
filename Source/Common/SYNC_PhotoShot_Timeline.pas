@@ -8,29 +8,25 @@ interface
 type
   TPhotoShotSettings = record
     CameraKind, Orientation, ShutterEffect: Integer;
-    CameraEnter, CameraExit, PreviewEnter, PreviewStyle: Integer;
+    CameraEnter, CameraExit: Integer;
     X, Y, Scale, Rotation, Opacity: Double;
     InnerX, InnerY, InnerZoom, InnerBlur: Double;
-    PreviewX, PreviewY, PreviewScale, PreviewRotation: Double;
     BackgroundBlur, BackgroundDark: Double;
     // UI の秒値が正本。フレーム値は対象シーンの fps から累積境界で導出する。
-    EnterSeconds, WaitSeconds, ShutterSeconds, ExitSeconds, PreviewSeconds,
-      HoldSeconds: Double;
-    EnterFrames, WaitFrames, ShutterFrames, ExitFrames, PreviewFrames,
-      HoldFrames: Integer;
+    EnterSeconds, WaitSeconds, ShutterSeconds, ExitSeconds: Double;
+    EnterFrames, WaitFrames, ShutterFrames, ExitFrames: Integer;
   end;
 
   TPhotoShotState = record
-    // 0=登場、1=待機、2=シャッター、3=退場、4=写真登場、5=写真保持。
+    // 0=登場、1=待機、2=シャッター、3=退場、4=終了。
     Phase: Integer;
     Progress: Double;
     ShutterFrame: Integer;
-    CameraVisible, PreviewVisible: Boolean;
+    CameraVisible: Boolean;
     // Scale は百分率、Opacity は可視率 0..100。位置は画面中心からのオフセット。
     CameraX, CameraY, CameraScale, CameraRotation, CameraOpacity: Double;
-    PreviewX, PreviewY, PreviewScale, PreviewRotation, PreviewOpacity: Double;
     // 起き上がりの縦方向圧縮率。1 が通常形状。2D の奥行き表現であり3D回転ではない。
-    CameraVerticalScale, PreviewVerticalScale: Double;
+    CameraVerticalScale: Double;
   end;
 
 // UI 初期秒値と、30 fps で導出したフレーム値を返す。
@@ -42,8 +38,8 @@ function DefaultPhotoShotSettings: TPhotoShotSettings;
 // 正の .01 秒でも低 fps では 0 frame になり得る。音声も導出撮影 frame を基準にする。
 procedure ResolvePhotoShotTiming(var S: TPhotoShotSettings; Rate, Scale: Integer);
 // Frame はオブジェクト先頭からのフレーム番号。負の値は先頭へ丸める。
-// ゼロ長段階は省略し、総時間を越えた場合は最後の写真を保持する。
-// CameraEnter / CameraExit / PreviewEnter:
+// ゼロ長段階は省略し、総時間を越えた場合はカメラを表示しない。
+// CameraEnter / CameraExit:
 // 0=なし、1=フェード、2=ズームイン、3=スライド、4=回転、5=ポップ、6=バウンド。
 // 7=ズームアウト、8=起き上がり。既存の選択番号と時間規則を維持する。
 // 外部状態の変更、画像取得、音声再生は行わない。
@@ -61,25 +57,20 @@ begin
   Result.Scale := 100;
   Result.Opacity := 100;
   Result.InnerZoom := 100;
-  Result.PreviewScale := 100;
   Result.ShutterEffect := 1;
   Result.CameraEnter := 3;
   Result.CameraExit := 1;
-  Result.PreviewEnter := 2;
-  Result.PreviewStyle := 1;
   Result.EnterSeconds := 0.50;
   Result.WaitSeconds := 1.00;
   Result.ShutterSeconds := 0.27;
   Result.ExitSeconds := 0.40;
-  Result.PreviewSeconds := 0.50;
-  Result.HoldSeconds := 1.00;
   ResolvePhotoShotTiming(Result, 30, 1);
 end;
 
 procedure ResolvePhotoShotTiming(var S: TPhotoShotSettings; Rate, Scale: Integer);
 var
-  Seconds: array[0..5] of Double;
-  Frames: array[0..5] of Integer;
+  Seconds: array[0..3] of Double;
+  Frames: array[0..3] of Integer;
   I: Integer;
   Total, Position: Double;
   Previous, Boundary: Int64;
@@ -88,7 +79,6 @@ begin
     raise EArgumentException.Create('PhotoShot requires a positive scene frame rate');
   Seconds[0] := S.EnterSeconds; Seconds[1] := S.WaitSeconds;
   Seconds[2] := S.ShutterSeconds; Seconds[3] := S.ExitSeconds;
-  Seconds[4] := S.PreviewSeconds; Seconds[5] := S.HoldSeconds;
   Total := 0;
   Previous := 0;
   for I := 0 to High(Seconds) do
@@ -105,10 +95,8 @@ begin
   end;
   S.EnterSeconds := Seconds[0]; S.WaitSeconds := Seconds[1];
   S.ShutterSeconds := Seconds[2]; S.ExitSeconds := Seconds[3];
-  S.PreviewSeconds := Seconds[4]; S.HoldSeconds := Seconds[5];
   S.EnterFrames := Frames[0]; S.WaitFrames := Frames[1];
   S.ShutterFrames := Frames[2]; S.ExitFrames := Frames[3];
-  S.PreviewFrames := Frames[4]; S.HoldFrames := Frames[5];
 end;
 
 function StageProgress(LocalFrame: Int64; Duration: Integer): Double;
@@ -152,7 +140,8 @@ begin
     5:
       begin
         // back-out は終端で 1 に戻る。境界を明示して浮動小数誤差も残さない。
-        Overshoot := 1 + 2.70158 * Power(T - 1, 3) + 1.70158 * Sqr(T - 1);
+        if T <= 0 then Overshoot := 0
+        else Overshoot := 1 + 2.70158 * Power(T - 1, 3) + 1.70158 * Sqr(T - 1);
         Scale := Scale * Max(0.0, Overshoot);
         Opacity := Opacity * Min(1.0, T * 5);
       end;
@@ -188,9 +177,8 @@ begin
   end;
 end;
 
-procedure AnimationSizes(const S: TPhotoShotSettings; CanvasWidth, CanvasHeight: Integer;
-  out CameraWidth, CameraHeight, PhotoWidth, PhotoHeight: Double);
-var ScreenWidth, ScreenHeight, Ratio, Border, Bottom: Double;
+procedure AnimationSizes(const S: TPhotoShotSettings;
+  out CameraWidth, CameraHeight: Double);
 begin
   case S.CameraKind of
     0:
@@ -200,33 +188,14 @@ begin
     3: begin CameraWidth := 600; CameraHeight := 650; end;
   else begin CameraWidth := 700; CameraHeight := 470; end;
   end;
-  if S.CameraKind = 0 then
-  begin ScreenWidth := CameraWidth - 28; ScreenHeight := CameraHeight - 36; end
-  else if S.CameraKind = 3 then
-  begin ScreenWidth := CameraWidth - 96; ScreenHeight := 350; end
-  else begin ScreenWidth := CameraWidth - 172; ScreenHeight := CameraHeight - 160; end;
-  Ratio := Min(Max(1, CanvasWidth) / ScreenWidth, Max(1, CanvasHeight) / ScreenHeight);
-  PhotoWidth := Max(1, Round(ScreenWidth * Ratio));
-  PhotoHeight := Max(1, Round(ScreenHeight * Ratio));
-  Border := 0; Bottom := 0;
-  if S.PreviewStyle > 0 then
-  begin Border := Max(8, Round(Min(PhotoWidth, PhotoHeight) * 0.035)); Bottom := Border; end;
-  if S.PreviewStyle = 2 then Bottom := Border * 4;
-  PhotoWidth := PhotoWidth + Border * 2;
-  PhotoHeight := PhotoHeight + Border + Bottom;
-  Ratio := Min(Max(1, CanvasWidth) / PhotoWidth, Max(1, CanvasHeight) / PhotoHeight);
-  if S.PreviewStyle > 0 then Ratio := Ratio * 0.86;
-  PhotoWidth := PhotoWidth * Ratio;
-  PhotoHeight := PhotoHeight * Ratio;
 end;
-
 function EvaluatePhotoShot(const S: TPhotoShotSettings;
   Frame, CanvasWidth, CanvasHeight: Integer): TPhotoShotState;
 var
-  Durations: array[0..5] of Integer;
+  Durations: array[0..3] of Integer;
   I: Integer;
   Start, AtFrame, Capture: Int64;
-  CameraWidth, CameraHeight, PhotoWidth, PhotoHeight: Double;
+  CameraWidth, CameraHeight: Double;
 begin
   Result := Default(TPhotoShotState);
   Result.CameraX := S.X;
@@ -234,25 +203,18 @@ begin
   Result.CameraScale := Max(0.0, S.Scale);
   Result.CameraRotation := S.Rotation;
   Result.CameraOpacity := EnsureRange(S.Opacity, 0.0, 100.0);
-  Result.PreviewX := S.PreviewX;
-  Result.PreviewY := S.PreviewY;
-  Result.PreviewScale := Max(0.0, S.PreviewScale);
-  Result.PreviewRotation := S.PreviewRotation;
-  Result.PreviewOpacity := 100;
-  Result.CameraVerticalScale := 1; Result.PreviewVerticalScale := 1;
-  AnimationSizes(S, CanvasWidth, CanvasHeight, CameraWidth, CameraHeight, PhotoWidth, PhotoHeight);
+  Result.CameraVerticalScale := 1;
+  AnimationSizes(S, CameraWidth, CameraHeight);
   Durations[0] := Max(0, S.EnterFrames);
   Durations[1] := Max(0, S.WaitFrames);
   Durations[2] := Max(0, S.ShutterFrames);
   Durations[3] := Max(0, S.ExitFrames);
-  Durations[4] := Max(0, S.PreviewFrames);
-  Durations[5] := Max(0, S.HoldFrames);
   Capture := Int64(Durations[0]) + Durations[1];
   if Capture > High(Integer) then Result.ShutterFrame := High(Integer)
   else Result.ShutterFrame := Integer(Capture);
   AtFrame := Max(0, Frame);
   Start := 0;
-  Result.Phase := 5;
+  Result.Phase := 4;
   Result.Progress := 1;
   for I := 0 to High(Durations) do
   begin
@@ -265,7 +227,6 @@ begin
     Inc(Start, Durations[I]);
   end;
   Result.CameraVisible := Result.Phase <= 3;
-  Result.PreviewVisible := Result.Phase >= 4;
   case Result.Phase of
     0: ApplyEntrance(S.CameraEnter, Result.Progress, CanvasWidth, CanvasHeight, CameraWidth, CameraHeight,
          Result.CameraX, Result.CameraY, Result.CameraScale,
@@ -273,9 +234,6 @@ begin
     3: ApplyEntrance(S.CameraExit, 1 - Result.Progress, CanvasWidth, CanvasHeight, CameraWidth, CameraHeight,
          Result.CameraX, Result.CameraY, Result.CameraScale,
          Result.CameraRotation, Result.CameraOpacity, Result.CameraVerticalScale);
-    4: ApplyEntrance(S.PreviewEnter, Result.Progress, CanvasWidth, CanvasHeight, PhotoWidth, PhotoHeight,
-         Result.PreviewX, Result.PreviewY, Result.PreviewScale,
-         Result.PreviewRotation, Result.PreviewOpacity, Result.PreviewVerticalScale);
   end;
 end;
 

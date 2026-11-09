@@ -1,7 +1,7 @@
 ﻿unit SYNC_PhotoShot_Renderer;
 
-// 写真撮影の合成描画。ホスト API と時間順序に依存せず、渡された現在画像と
-// シャッター時刻画像から毎回同じ結果を生成する。画像所有権は公開 API に記載。
+// カメラのライブビューと撮影演出を現在入力だけから合成する。
+// 撮影結果の保持・写真表示・ファイル出力は行わない。
 interface
 
 uses
@@ -9,8 +9,6 @@ uses
   SYNC_SmartphoneRenderer, SYNC_PhotoShot_Timeline;
 
 type
-  PPhotoShotSettings = ^TPhotoShotSettings;
-
   TPhotoShotRenderer = class
   private
     FToken: ULONG_PTR;
@@ -21,16 +19,14 @@ type
     constructor Create;
     // 戻り画像を含む所有資源を解放する。借用入力画像は解放しない。
     destructor Destroy; override;
-    // Current/Snapshot は呼出側所有。Snapshot は同一効果のシャッター時刻画像。
+    // Current は呼出側所有の現在入力。保存せず、この呼出し中だけ借用する。
     // 戻り値は本インスタンス所有 PARGB 画像。次の Render または Destroy まで有効。
-    // 入力 nil は nil を返す。Snapshot nil 時は写真を捏造せずプレビューを省略する。
-    // CapturedSettings は撮影時の内側設定・画角を借用する。nil は既存動作。
-    // 写真枠・プレビュー姿勢・背景は現在 Settings を使用し、ポインターは保持しない。
-    function Render(Current, Snapshot: TGPBitmap; const Settings: TPhotoShotSettings;
-      Frame: Integer; CapturedSettings: PPhotoShotSettings = nil): TGPBitmap;
+    // 入力 nil は nil。プレビューはカメラ内のライブビューを指し、撮影写真は扱わない。
+    function Render(Current:TGPBitmap; const Settings:TPhotoShotSettings;
+      Frame:Integer):TGPBitmap;
   end;
 
-// カメラ画面の画面上領域を入力から採取する。本体と写真で共用し、UIを含まない。
+// カメラ画面の画面上領域を現在入力から採取する。ライブビュー用でUIを含まない。
 // Source は借用、戻り値は呼出側が Free。範囲外とゼロ倍率は不透明黒。
 // Pose は実描画姿勢、S は画角・内部設定。座標は入力画像の左上を原点とする。
 function RenderPhotoShotView(Source:TGPBitmap; const S:TPhotoShotSettings;
@@ -108,7 +104,7 @@ procedure Place(G: TGPGraphics; Image: TGPBitmap;
 var Saved: GraphicsState; A: TGPImageAttributes; M: TColorMatrix; I: Integer;
   W,H: Single;
 begin
-  if (Image=nil) or (Scale<=0) or (Opacity<=0) then Exit;
+  if (Image=nil) or (Scale<=1E-6) or (Opacity<=0) then Exit;
   W := Image.GetWidth; H := Image.GetHeight;
   A := TGPImageAttributes.Create;
   Saved := G.Save;
@@ -210,7 +206,8 @@ begin
   try
     G.Clear($FF000000);
     Scale:=Pose.CameraScale/100;
-    if (Source=nil) or (Scale<=0) or (Pose.CameraVerticalScale<=0) then Exit;
+    // サブピクセル未満の倍率で逆行列を巨大化させない。不可視域は黒／配置なし。
+    if (Source=nil) or (Scale<=1E-6) or (Pose.CameraVerticalScale<=1E-6) then Exit;
     CameraGeometry(S.CameraKind,S.Orientation,BodyW,BodyH,Screen);
     Vertical:=EnsureRange(Pose.CameraVerticalScale,0.01,1.0);
     Zoom:=Max(0.01,S.InnerZoom/100);
@@ -228,7 +225,7 @@ begin
     RequireGdi(G.DrawImage(Source,PGPPointF(@Points[0]),3,0,0,Single(Source.GetWidth),
       Single(Source.GetHeight),UnitPixel),'Sample view');
   finally G.Free; end;
-  // 撮影時の内部ぼかしは写真にも残す。背景のぼかし・暗さは焼き込まない。
+  // 内部ぼかしはライブビューへ適用する。背景のぼかし・暗さとは独立させる。
   Blur(Result,Round(EnsureRange(S.InnerBlur,0.0,100.0)*Min(W,H)/1000));
   except
     Result.Free;
@@ -269,7 +266,7 @@ begin
 end;
 
 function CameraBitmap(Phone: TSmartphoneRenderer; Source: TGPBitmap;
-  const S, SampleSettings:TPhotoShotSettings; const SamplePose:TPhotoShotState):TGPBitmap;
+  const S:TPhotoShotSettings; const Pose:TPhotoShotState):TGPBitmap;
 var G: TGPGraphics; Inner: TGPBitmap; W,H: Integer; Screen: TGPRectF;
 begin
   CameraGeometry(S.CameraKind,S.Orientation,W,H,Screen);
@@ -277,7 +274,7 @@ begin
   G:=TGPGraphics.Create(Result);
   try
     G.Clear(0); G.SetSmoothingMode(SmoothingModeAntiAlias);
-    Inner:=RenderPhotoShotView(Source,SampleSettings,SamplePose,Round(Screen.Width),Round(Screen.Height));
+    Inner:=RenderPhotoShotView(Source,S,Pose,Round(Screen.Width),Round(Screen.Height));
     if S.CameraKind=0 then
       Phone.Draw(G,Rect(0,0,W,H),S.Orientation,$FF303840,$FF000000,Inner)
     else
@@ -316,38 +313,6 @@ begin
     end;
     CameraUI(G,Screen,S.CameraKind,S.Orientation);
   finally Inner.Free; G.Free; end;
-end;
-
-// 写真はシャッター時の内部トリミングを維持し、背景のぼかし・暗さを焼き込まない。
-function PhotoBitmap(Source:TGPBitmap; const S:TPhotoShotSettings;
-  const Pose:TPhotoShotState; CanvasW,CanvasH:Integer):TGPBitmap;
-var W,H,PW,PH,Border,Bottom:Integer; Screen:TGPRectF; Ratio:Double;
-  Photo:TGPBitmap; G:TGPGraphics;
-begin
-  CameraGeometry(S.CameraKind,S.Orientation,W,H,Screen);
-  Ratio:=Min(CanvasW/Screen.Width,CanvasH/Screen.Height);
-  PW:=Max(1,Round(Screen.Width*Ratio)); PH:=Max(1,Round(Screen.Height*Ratio));
-  Border:=0; Bottom:=0;
-  if S.PreviewStyle>0 then begin Border:=Max(8,Round(Min(PW,PH)*0.035)); Bottom:=Border; end;
-  if S.PreviewStyle=2 then Bottom:=Border*4;
-  Result:=nil; Photo:=nil; G:=nil;
-  try
-    try
-      Photo:=RenderPhotoShotView(Source,S,Pose,PW,PH);
-      Result:=NewBitmap(PW+2*Border,PH+Border+Bottom);
-      G:=TGPGraphics.Create(Result);
-    G.Clear($FFFFFFFF);
-    RequireGdi(G.DrawImage(Photo,Border,Border,PW,PH),'Photo content');
-    // カメラ別の撮影情報は仮数値。日付は仕様未確定のため追加しない。
-    G.TranslateTransform(Border,Border);
-    G.ScaleTransform(PW/Screen.Width,PH/Screen.Height);
-    CameraUI(G,MakeRect(Single(0),Single(0),Screen.Width,Screen.Height),S.CameraKind,S.Orientation);
-    except
-      FreeAndNil(G);
-      FreeAndNil(Result);
-      raise;
-    end;
-  finally G.Free; Photo.Free; end;
 end;
 
 // シャッターは画面中心の演出。入力画像は不変で、再生順のキャッシュを使用しない。
@@ -409,12 +374,10 @@ begin
   inherited Destroy;
 end;
 
-function TPhotoShotRenderer.Render(Current,Snapshot:TGPBitmap;
-  const Settings:TPhotoShotSettings; Frame:Integer;
-  CapturedSettings:PPhotoShotSettings):TGPBitmap;
-var State,CapturePose:TPhotoShotState; G:TGPGraphics; Camera,Photo,CameraSource:TGPBitmap;
-  W,H:Integer; Fit,Shake,ShutterProgress:Double;
-  PhotoSettings:TPhotoShotSettings; FrozenCamera:Boolean;
+function TPhotoShotRenderer.Render(Current:TGPBitmap;
+  const Settings:TPhotoShotSettings; Frame:Integer):TGPBitmap;
+var State:TPhotoShotState; G:TGPGraphics; Camera:TGPBitmap;
+  W,H:Integer; Shake,ShutterProgress:Double;
 begin
   Result:=nil;
   if (Current=nil) or (Current.GetWidth=0) or (Current.GetHeight=0) then Exit;
@@ -422,19 +385,10 @@ begin
   if (FOutput=nil) or (Integer(FOutput.GetWidth)<>W) or (Integer(FOutput.GetHeight)<>H) then
   begin FreeAndNil(FOutput); FOutput:=NewBitmap(W,H); end;
   State:=EvaluatePhotoShot(Settings,Frame,W,H);
-  // 確定写真は撮影時の全カメラ設定と実姿勢で採取し直す。写真枠と最終配置は現在値。
-  PhotoSettings:=Settings;
-  if CapturedSettings<>nil then
-  begin
-    PhotoSettings:=CapturedSettings^;
-    PhotoSettings.PreviewStyle:=Settings.PreviewStyle;
-  end;
-  CapturePose:=EvaluatePhotoShot(PhotoSettings,0,W,H);
-  CapturePose:=EvaluatePhotoShot(PhotoSettings,CapturePose.ShutterFrame,W,H);
   // 1 フレームでも視覚ピークを表示する。撮影時刻・段階の長さ自体は変更しない。
   ShutterProgress:=State.Progress;
   if (State.Phase=2) and (Settings.ShutterFrames=1) then ShutterProgress:=0.5;
-  G:=TGPGraphics.Create(FOutput); Camera:=nil; Photo:=nil;
+  G:=TGPGraphics.Create(FOutput); Camera:=nil;
   try
     RequireGdi(G.Clear(0),'Output clear'); RequireGdi(G.DrawImage(Current,0,0,W,H),'Background');
   finally G.Free; end;
@@ -446,15 +400,8 @@ begin
     Fill(G,0,0,W,H,Cardinal(Round(EnsureRange(Settings.BackgroundDark,0.0,100.0)*2.55)) shl 24);
     if State.CameraVisible then
     begin
-      CameraSource:=Current;
-      FrozenCamera:=(Frame>=State.ShutterFrame) and (Snapshot<>nil);
-      if FrozenCamera then CameraSource:=Snapshot;
-      // 絞り＋静止画切替だけは、閉じる前半にライブ像を維持し、完全閉鎖時に切り替える。
-      // 撮影画像が未取得の場合は常に Current のまま。再生履歴は使用しない。
-      if (State.Phase=2) and (Settings.ShutterEffect=10) and (ShutterProgress<0.5) then
-      begin CameraSource:=Current; FrozenCamera:=False; end;
-      if FrozenCamera then Camera:=CameraBitmap(FPhone,CameraSource,Settings,PhotoSettings,CapturePose)
-      else Camera:=CameraBitmap(FPhone,CameraSource,Settings,Settings,State);
+      // シャッター後も、カメラが表示されている間は常に現在入力をライブ表示する。
+      Camera:=CameraBitmap(FPhone,Current,Settings,State);
       Shake:=0;
       if (State.Phase=2) and (Settings.ShutterEffect=3) then
         if Settings.ShutterFrames=1 then Shake:=Min(W,H)*0.012
@@ -462,19 +409,11 @@ begin
       Place(G,Camera,W/2+State.CameraX+Shake,H/2+State.CameraY-Shake/2,
         State.CameraScale/100,State.CameraRotation,State.CameraOpacity,State.CameraVerticalScale);
     end;
-    if State.PreviewVisible and (Snapshot<>nil) then
-    begin
-      Photo:=PhotoBitmap(Snapshot,PhotoSettings,CapturePose,W,H);
-      Fit:=Min(W/Photo.GetWidth,H/Photo.GetHeight);
-      if Settings.PreviewStyle>0 then Fit:=Fit*0.86;
-      Place(G,Photo,W/2+State.PreviewX,H/2+State.PreviewY,
-        Fit*State.PreviewScale/100,State.PreviewRotation,State.PreviewOpacity,State.PreviewVerticalScale);
-    end;
     if State.Phase=2 then
       if (Settings.ShutterFrames=1) and (Settings.ShutterEffect=8) then
         Shutter(G,W,H,Settings.ShutterEffect,0.25)
       else Shutter(G,W,H,Settings.ShutterEffect,ShutterProgress);
-  finally Photo.Free; Camera.Free; G.Free; end;
+  finally Camera.Free; G.Free; end;
   Result:=FOutput;
 end;
 
