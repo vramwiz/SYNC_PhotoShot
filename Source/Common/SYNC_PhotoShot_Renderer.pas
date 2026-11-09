@@ -62,22 +62,6 @@ begin
   try G.FillRectangle(B, X, Y, W, H); finally B.Free; end;
 end;
 
-procedure RoundFill(G: TGPGraphics; X, Y, W, H, R: Single; Color: ARGB);
-var P: TGPGraphicsPath; B: TGPSolidBrush; D: Single;
-begin
-  P := TGPGraphicsPath.Create;
-  B := TGPSolidBrush.Create(Color);
-  try
-    D := Min(R * 2, Min(W, H));
-    P.AddArc(X, Y, D, D, 180, 90);
-    P.AddArc(X + W - D, Y, D, D, 270, 90);
-    P.AddArc(X + W - D, Y + H - D, D, D, 0, 90);
-    P.AddArc(X, Y + H - D, D, D, 90, 90);
-    P.CloseFigure;
-    G.FillPath(B, P);
-  finally B.Free; P.Free; end;
-end;
-
 procedure Ellipse(G: TGPGraphics; X,Y,W,H: Single; Color: ARGB);
 var B: TGPSolidBrush;
 begin
@@ -167,7 +151,7 @@ begin
   finally Bitmap.UnlockBits(Data); end;
 end;
 
-procedure CameraGeometry(Kind,Orientation: Integer; out W,H: Integer; out Screen: TGPRectF);
+procedure CameraGeometry(Kind,Orientation,CanvasW,CanvasH:Integer; out W,H:Integer; out Screen:TGPRectF);
 begin
   if Kind=0 then
   begin
@@ -176,11 +160,9 @@ begin
   end
   else
   begin
-    W:=700; H:=470;
-    if Kind=2 then H:=500;
-    if Kind=3 then begin W:=600; H:=650; end;
-    Screen:=MakeRect(Single(46),Single(74),Single(W-172),Single(H-160));
-    if Kind=3 then Screen:=MakeRect(Single(48),Single(102),Single(W-96),Single(350));
+    // 非スマホは筐体なし。倍率100の撮影範囲は映像canvas全体。
+    W:=Max(1,CanvasW); H:=Max(1,CanvasH);
+    Screen:=MakeRect(Single(0),Single(0),Single(W),Single(H));
   end;
 end;
 
@@ -208,7 +190,7 @@ begin
     Scale:=Pose.CameraScale/100;
     // サブピクセル未満の倍率で逆行列を巨大化させない。不可視域は黒／配置なし。
     if (Source=nil) or (Scale<=1E-6) or (Pose.CameraVerticalScale<=1E-6) then Exit;
-    CameraGeometry(S.CameraKind,S.Orientation,BodyW,BodyH,Screen);
+    CameraGeometry(S.CameraKind,S.Orientation,Source.GetWidth,Source.GetHeight,BodyW,BodyH,Screen);
     Vertical:=EnsureRange(Pose.CameraVerticalScale,0.01,1.0);
     Zoom:=Max(0.01,S.InnerZoom/100);
     CosA:=Cos(DegToRad(Pose.CameraRotation)); SinA:=Sin(DegToRad(Pose.CameraRotation));
@@ -265,57 +247,147 @@ begin
     end;
 end;
 
-function CameraBitmap(Phone: TSmartphoneRenderer; Source: TGPBitmap;
-  const S:TPhotoShotSettings; const Pose:TPhotoShotState):TGPBitmap;
-var G: TGPGraphics; Inner: TGPBitmap; W,H: Integer; Screen: TGPRectF;
+// 撮影情報は演出用の仮表示であり、EXIF・実カメラ設定の読取結果ではない。
+// 枠だけで種別を区別し、筐体や写真枠は描かない。基準640x360をcanvasへ配置する。
+procedure FinderUI(G:TGPGraphics; W,H,Kind:Integer);
+var Saved:GraphicsState; P:TGPPen; I:Integer; A:Single;
 begin
-  CameraGeometry(S.CameraKind,S.Orientation,W,H,Screen);
-  Result:=NewBitmap(W,H); Inner:=nil;
-  G:=TGPGraphics.Create(Result);
+  Saved:=G.Save;
   try
-    G.Clear(0); G.SetSmoothingMode(SmoothingModeAntiAlias);
-    Inner:=RenderPhotoShotView(Source,S,Pose,Round(Screen.Width),Round(Screen.Height));
-    if S.CameraKind=0 then
-      Phone.Draw(G,Rect(0,0,W,H),S.Orientation,$FF303840,$FF000000,Inner)
-    else
-    begin
-      case S.CameraKind of
-        1: begin
-          RoundFill(G,2,20,W-4,H-22,32,$FFB9C2CA);
-          RoundFill(G,30,5,100,30,8,$FF535B65);
-          RoundFill(G,W-110,30,100,H-70,28,$FF3D4650);
-        end;
-        2: begin
-          RoundFill(G,4,52,W-8,H-56,35,$FF252A30);
-          RoundFill(G,W/2-90,4,180,75,16,$FF252A30);
-          RoundFill(G,W-116,36,106,H-64,28,$FF161A20);
-          Ellipse(G,W/2-30,14,60,25,$FF11151A);
-        end;
-        3: begin
-          RoundFill(G,2,2,W-4,H-4,58,$FFF1EBDD);
-          RoundFill(G,14,H-124,W-28,110,24,$FFD8D0C1);
-          RoundFill(G,W/2-130,H-103,260,12,5,$FF20252B);
-          Fill(G,44,62,W-88,7,$FFB6504F);
-          Fill(G,44,69,W-88,7,$FFE1BB55);
-          Fill(G,44,76,W-88,7,$FF5B9A87);
-        end;
-      end;
-      RoundFill(G,Screen.X-7,Screen.Y-7,Screen.Width+14,Screen.Height+14,12,$FF080B0E);
-      G.DrawImage(Inner,Screen);
-      if S.CameraKind<>3 then
+    G.ScaleTransform(W/640,H/360);
+    Fill(G,12,12,616,28,$66000000);
+    Fill(G,12,320,616,28,$66000000);
+    P:=TGPPen.Create($CCFFFFFF,1.5);
+    try
+      // 外周は短い四隅のガイド。中央は広く空け、撮影対象を隠さない。
+      G.DrawLine(P,16,55,16,16); G.DrawLine(P,16,16,55,16);
+      G.DrawLine(P,585,16,624,16); G.DrawLine(P,624,16,624,55);
+      G.DrawLine(P,16,305,16,344); G.DrawLine(P,16,344,55,344);
+      G.DrawLine(P,585,344,624,344); G.DrawLine(P,624,344,624,305);
+      G.DrawLine(P,280,145,280,165); G.DrawLine(P,280,145,300,145);
+      G.DrawLine(P,340,145,360,145); G.DrawLine(P,360,145,360,165);
+      G.DrawLine(P,280,195,280,215); G.DrawLine(P,280,215,300,215);
+      G.DrawLine(P,340,215,360,215); G.DrawLine(P,360,195,360,215);
+      if Kind=2 then
       begin
-        Ellipse(G,W-92,100,58,58,$FF191E25);
-        Ellipse(G,W-82,110,38,38,$FF4A555E);
-        Caption(G,'OK',W-83,118,40,22,14,$FFFFFFFF);
-        Ellipse(G,W-80,200,34,34,$FF8B949C);
-        Ellipse(G,W-80,260,34,34,$FF8B949C);
+        // 一眼レフは多点AF・水平水準・露出目盛りを追加。
+        for I:=0 to 2 do
+        begin
+          A:=220+100*I;
+          G.DrawRectangle(P,A-7,103,14,14); G.DrawRectangle(P,A-7,243,14,14);
+        end;
+        G.DrawLine(P,250,286,390,286);
+        for I:=0 to 8 do G.DrawLine(P,256+16*I,282,256+16*I,290);
+        G.DrawLine(P,320,278,320,294);
+        Caption(G,'-2      -1       0       +1      +2',230,295,180,16,11,$FFFFFFFF);
+      end
+      else if Kind=3 then
+      begin
+        // インスタントは光学ファインダー風の中心印と近距離補正ガイド。
+        G.DrawLine(P,314,180,326,180); G.DrawLine(P,320,174,320,186);
+        G.DrawLine(P,72,72,568,72);
+        Caption(G,'NEAR',72,76,56,18,11,$EEFFFFFF);
+      end;
+    finally P.Free; end;
+    case Kind of
+      2:
+      begin
+        Caption(G,'M   RAW+JPG     AF-S',24,15,260,22,15,$FFFFFFFF);
+        Caption(G,'[999]    BAT  87%',420,15,192,22,14,$FFFFFFFF);
+        Caption(G,'1/125     F2.8     ISO 100     WB 5500K',26,322,500,22,15,$FFFFFFFF);
+        Caption(G,'FX',554,322,60,22,14,$FFFFFFFF);
+      end;
+      3:
+      begin
+        Caption(G,'INSTANT',24,15,140,22,16,$FFFBE6B4);
+        Caption(G,'08 LEFT',480,15,132,22,16,$FFFBE6B4);
+        Caption(G,'FLASH ON      EXP 0',32,322,300,22,15,$FFFFFFFF);
+        Caption(G,'AUTO',510,322,100,22,14,$FFFFFFFF);
+      end;
+    else
+      begin
+        Caption(G,'AUTO',24,15,100,22,16,$FFFFFFFF);
+        Caption(G,'12M    [128]',448,15,164,22,14,$FFFFFFFF);
+        Caption(G,'1/250      F4.0',32,322,220,22,15,$FFFFFFFF);
+        Caption(G,'AF',544,322,64,22,14,$FFFFFFFF);
       end;
     end;
-    CameraUI(G,Screen,S.CameraKind,S.Orientation);
-  finally Inner.Free; G.Free; end;
+  finally G.Restore(Saved); end;
 end;
 
+procedure DrawCamera(G:TGPGraphics; Phone:TSmartphoneRenderer; Source:TGPBitmap;
+  const S:TPhotoShotSettings; const Pose:TPhotoShotState);
+var Inner:TGPBitmap; W,H,PhoneW,PhoneH,Direction:Integer; Screen:TGPRectF;
+  Saved:GraphicsState; InsetX,InsetY,ScreenW,ScreenH:Double;
+begin
+  CameraGeometry(S.CameraKind,S.Orientation,Source.GetWidth,Source.GetHeight,W,H,Screen);
+  Inner:=nil;
+  try
+    G.SetSmoothingMode(SmoothingModeAntiAlias);
+    Inner:=RenderPhotoShotView(Source,S,Pose,Round(Screen.Width),Round(Screen.Height));
+    if S.CameraKind=0 then
+    begin
+      // スマホの筐体・画面・既存UIは従来の描画順序と値を厳密に維持する。
+      Phone.Draw(G,Rect(0,0,W,H),S.Orientation,S.CameraColor,$FF000000,Inner);
+      CameraUI(G,Screen,S.CameraKind,S.Orientation);
+    end
+    else
+    begin
+      // 非スマホもスマホの角丸外枠を流用し、色指定を共通化する。
+      // canvas全体の撮影像を共通枠内に表示する。カメラ筐体固有形状は作らない。
+      if W>H then Direction:=1 else Direction:=0;
+      Phone.Draw(G,Rect(0,0,W,H),Direction,S.CameraColor,$FF000000,Inner);
+      SmartphoneSize(Direction,PhoneW,PhoneH);
+      InsetX:=W*14/PhoneW; InsetY:=H*18/PhoneH;
+      ScreenW:=W*(PhoneW-28)/PhoneW; ScreenH:=H*(PhoneH-36)/PhoneH;
+      Saved:=G.Save;
+      try
+        G.TranslateTransform(InsetX,InsetY);
+        FinderUI(G,Round(ScreenW),Round(ScreenH),S.CameraKind);
+      finally G.Restore(Saved); end;
+    end;
+  finally Inner.Free; end;
+end;
 // シャッターは画面中心の演出。入力画像は不変で、再生順のキャッシュを使用しない。
+// 不透明度100では出力へ直接描く。半透明は枠/UI一括合成を守る旧経路。
+function CameraBitmap(Phone:TSmartphoneRenderer; Source:TGPBitmap;
+  const S:TPhotoShotSettings; const Pose:TPhotoShotState):TGPBitmap;
+var G:TGPGraphics; W,H:Integer; Screen:TGPRectF;
+begin
+  CameraGeometry(S.CameraKind,S.Orientation,Source.GetWidth,Source.GetHeight,W,H,Screen);
+  Result:=NewBitmap(W,H);
+  try
+    G:=TGPGraphics.Create(Result);
+    try
+      RequireGdi(G.Clear(0),'Camera clear');
+      DrawCamera(G,Phone,Source,S,Pose);
+    finally G.Free; end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+procedure DrawCameraDirect(G:TGPGraphics; Phone:TSmartphoneRenderer; Source:TGPBitmap;
+  const S:TPhotoShotSettings; const Pose:TPhotoShotState; Shake:Double);
+var Saved:GraphicsState; W,H:Integer; Screen:TGPRectF; Scale:Double;
+begin
+  Scale:=Pose.CameraScale/100;
+  if (Scale<=1E-6) or (Pose.CameraOpacity<=0) then Exit;
+  CameraGeometry(S.CameraKind,S.Orientation,Source.GetWidth,Source.GetHeight,W,H,Screen);
+  Saved:=G.Save;
+  try
+    G.TranslateTransform(Source.GetWidth/2+Pose.CameraX+Shake,
+      Source.GetHeight/2+Pose.CameraY-Shake/2);
+    G.RotateTransform(Pose.CameraRotation);
+    G.ScaleTransform(Scale,Scale*EnsureRange(Pose.CameraVerticalScale,0.01,1.0));
+    G.TranslateTransform(-W/2,-H/2);
+    // 旧中間画像の境界と同じ範囲にUIも制限する。
+    G.SetClip(MakeRect(0,0,W,H),CombineModeIntersect);
+    DrawCamera(G,Phone,Source,S,Pose);
+  finally G.Restore(Saved); end;
+end;
+
 procedure Shutter(G:TGPGraphics; W,H,Kind:Integer; Progress:Double);
 var Q,Radius,CX,CY,Angle:Double; B:TGPSolidBrush; Path:TGPGraphicsPath;
   Points:array[0..5] of TGPPointF; I:Integer;
@@ -401,13 +473,19 @@ begin
     if State.CameraVisible then
     begin
       // シャッター後も、カメラが表示されている間は常に現在入力をライブ表示する。
-      Camera:=CameraBitmap(FPhone,Current,Settings,State);
       Shake:=0;
       if (State.Phase=2) and (Settings.ShutterEffect=3) then
         if Settings.ShutterFrames=1 then Shake:=Min(W,H)*0.012
         else Shake:=Sin(ShutterProgress*Pi*8)*Sin(ShutterProgress*Pi)*Min(W,H)*0.012;
-      Place(G,Camera,W/2+State.CameraX+Shake,H/2+State.CameraY-Shake/2,
-        State.CameraScale/100,State.CameraRotation,State.CameraOpacity,State.CameraVerticalScale);
+      if (State.CameraScale/100>1E-6) and (State.CameraOpacity>0) then
+        if State.CameraOpacity>=100 then
+          DrawCameraDirect(G,FPhone,Current,Settings,State,Shake)
+        else
+        begin
+          Camera:=CameraBitmap(FPhone,Current,Settings,State);
+          Place(G,Camera,W/2+State.CameraX+Shake,H/2+State.CameraY-Shake/2,
+            State.CameraScale/100,State.CameraRotation,State.CameraOpacity,State.CameraVerticalScale);
+        end;
     end;
     if State.Phase=2 then
       if (Settings.ShutterFrames=1) and (Settings.ShutterEffect=8) then

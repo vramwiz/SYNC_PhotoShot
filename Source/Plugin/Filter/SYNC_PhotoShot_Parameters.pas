@@ -20,6 +20,7 @@ uses
 
 var
   CameraKind, Orientation, Shutter, EnterAnim, ExitAnim: TFILTER_ITEM_SELECT;
+  FrameColor: TFILTER_ITEM_COLOR;
   CameraOptions: array[0..4] of TFILTER_ITEM_SELECT_ITEM;
   DirectionOptions: array[0..2] of TFILTER_ITEM_SELECT_ITEM;
   ShutterOptions: array[0..10] of TFILTER_ITEM_SELECT_ITEM;
@@ -73,6 +74,7 @@ begin
   AddGroup(Groups[4], 'カメラ設定', 1);
   AddSelect(CameraKind, 'カメラ種類', S.CameraKind, @CameraOptions[0]);
   AddSelect(Orientation, 'カメラ方向', S.Orientation, @DirectionOptions[0]);
+  AddColor(FrameColor, 'カメラ・枠色', Byte(S.CameraColor), Byte(S.CameraColor shr 8), Byte(S.CameraColor shr 16));
   AddTrack(Tracks[0], 'X', S.X, -32768, 32768, 1);
   AddTrack(Tracks[1], 'Y', S.Y, -32768, 32768, 1);
   AddTrack(Tracks[2], '拡大率', S.Scale, 0, 1000, 0.1);
@@ -106,6 +108,9 @@ function ReadPhotoShotParameters(Rate, Scale: Integer): TPhotoShotSettings;
 begin
   Result := DefaultPhotoShotSettings;
   Result.CameraKind := CameraKind.Value;
+  // SDK色の予約byteは透過率ではない。共通枠は常に不透明ARGBへ変換。
+  Result.CameraColor := $FF000000 or (Cardinal(FrameColor.R) shl 16) or
+    (Cardinal(FrameColor.G) shl 8) or Cardinal(FrameColor.B);
   Result.Orientation := Orientation.Value;
   Result.ShutterEffect := Shutter.Value;
   Result.CameraEnter := EnterAnim.Value;

@@ -8,6 +8,7 @@ interface
 type
   TPhotoShotSettings = record
     CameraKind, Orientation, ShutterEffect: Integer;
+    CameraColor: Cardinal; // 共通のスマホ筐体／カメラ枠色（ARGB）。
     CameraEnter, CameraExit: Integer;
     X, Y, Scale, Rotation, Opacity: Double;
     InnerX, InnerY, InnerZoom, InnerBlur: Double;
@@ -54,6 +55,7 @@ uses
 function DefaultPhotoShotSettings: TPhotoShotSettings;
 begin
   Result := Default(TPhotoShotSettings);
+  Result.CameraColor := $FF303840;
   Result.Scale := 100;
   Result.Opacity := 100;
   Result.InnerZoom := 100;
@@ -177,16 +179,18 @@ begin
   end;
 end;
 
-procedure AnimationSizes(const S: TPhotoShotSettings;
-  out CameraWidth, CameraHeight: Double);
+procedure AnimationSizes(const S:TPhotoShotSettings; CanvasWidth,CanvasHeight:Integer;
+  out CameraWidth,CameraHeight:Double);
 begin
-  case S.CameraKind of
-    0:
-      if S.Orientation = 1 then begin CameraWidth := 820; CameraHeight := 420; end
-      else begin CameraWidth := 420; CameraHeight := 820; end;
-    2: begin CameraWidth := 700; CameraHeight := 500; end;
-    3: begin CameraWidth := 600; CameraHeight := 650; end;
-  else begin CameraWidth := 700; CameraHeight := 470; end;
+  if S.CameraKind=0 then
+  begin
+    if S.Orientation=1 then begin CameraWidth:=820; CameraHeight:=420; end
+    else begin CameraWidth:=420; CameraHeight:=820; end;
+  end
+  else
+  begin
+    // 非スマホは筐体ではなく全canvasのファインダー。開始倍率もこの実寸から導出。
+    CameraWidth:=Max(1,CanvasWidth); CameraHeight:=Max(1,CanvasHeight);
   end;
 end;
 function EvaluatePhotoShot(const S: TPhotoShotSettings;
@@ -204,7 +208,7 @@ begin
   Result.CameraRotation := S.Rotation;
   Result.CameraOpacity := EnsureRange(S.Opacity, 0.0, 100.0);
   Result.CameraVerticalScale := 1;
-  AnimationSizes(S, CameraWidth, CameraHeight);
+  AnimationSizes(S, CanvasWidth, CanvasHeight, CameraWidth, CameraHeight);
   Durations[0] := Max(0, S.EnterFrames);
   Durations[1] := Max(0, S.WaitFrames);
   Durations[2] := Max(0, S.ShutterFrames);
