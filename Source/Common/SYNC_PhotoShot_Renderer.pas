@@ -156,7 +156,11 @@ begin
   if Kind=0 then
   begin
     SmartphoneSize(Orientation,W,H);
-    Screen:=MakeRect(Single(14),Single(18),Single(W-28),Single(H-36));
+    // 撮影領域は横4:3／縦3:4。余った両端を操作帯として残す。
+    if Orientation=1 then
+      Screen:=MakeRect(Single(154),Single(18),Single(512),Single(384))
+    else
+      Screen:=MakeRect(Single(14),Single((H-392*4/3)/2),Single(392),Single(392*4/3));
   end
   else
   begin
@@ -215,7 +219,7 @@ begin
   end;
 end;
 procedure CameraUI(G: TGPGraphics; const Screen: TGPRectF; Kind,Orientation: Integer);
-var P: TGPPen; CX,CY,R: Single;
+var P: TGPPen; CX,CY,R,BX,BY: Single;
 begin
   CX:=Screen.X+Screen.Width/2; CY:=Screen.Y+Screen.Height/2; R:=Min(Screen.Width,Screen.Height)*0.12;
   P:=TGPPen.Create($CCFFFFFF,2);
@@ -226,19 +230,26 @@ begin
     G.DrawLine(P,CX+R,CY+R,CX+R/2,CY+R); G.DrawLine(P,CX+R,CY+R,CX+R,CY+R/2);
   finally P.Free; end;
   case Kind of
-    0: Caption(G,'PHOTO  HDR',Screen.X+12,Screen.Y+44,Screen.Width-24,24,16,$EEFFFFFF);
+    0:
+      if Orientation=1 then
+      begin
+        Caption(G,'PHOTO',48,134,90,24,14,$EEFFFFFF);
+        Caption(G,'HDR',48,164,90,24,13,$EEFFFFFF);
+      end
+      else Caption(G,'PHOTO  HDR',Screen.X+12,76,Screen.Width-24,24,16,$EEFFFFFF);
     1: Caption(G,'AUTO  12M',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
     2: Caption(G,'M  RAW',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
     3: Caption(G,'INSTANT  08',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
   end;
-  if (Kind=0) and (Orientation=0) then
+  if Kind=0 then
   begin
-    Ellipse(G,CX-27,Screen.Y+Screen.Height-86,54,54,$DDFFFFFF);
-    Ellipse(G,CX-22,Screen.Y+Screen.Height-81,44,44,$FF303840);
-    Ellipse(G,CX-19,Screen.Y+Screen.Height-78,38,38,$FFFFFFFF);
+    if Orientation=1 then
+    begin BX:=(Screen.X+Screen.Width+806)/2; BY:=210; end
+    else begin BX:=210; BY:=(Screen.Y+Screen.Height+802)/2; end;
+    Ellipse(G,BX-27,BY-27,54,54,$DDFFFFFF);
+    Ellipse(G,BX-22,BY-22,44,44,$FF303840);
+    Ellipse(G,BX-19,BY-19,38,38,$FFFFFFFF);
   end
-  else if Kind=0 then
-    Ellipse(G,Screen.X+Screen.Width-82,CY-27,54,54,$EEFFFFFF)
   else
     case Kind of
       1: Caption(G,'AUTO   1/250   F4.0',Screen.X+8,Screen.Y+Screen.Height-28,Screen.Width-16,22,13,$EEFFFFFF);
@@ -328,7 +339,7 @@ begin
     if S.CameraKind=0 then
     begin
       // スマホの筐体・画面・既存UIは従来の描画順序と値を厳密に維持する。
-      Phone.Draw(G,Rect(0,0,W,H),S.Orientation,S.CameraColor,$FF000000,Inner);
+      Phone.Draw(G,Rect(0,0,W,H),S.Orientation,S.CameraColor,$FF080A0C,Inner,@Screen);
       CameraUI(G,Screen,S.CameraKind,S.Orientation);
     end
     else

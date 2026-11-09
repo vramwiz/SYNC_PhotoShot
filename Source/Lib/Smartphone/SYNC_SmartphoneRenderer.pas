@@ -24,7 +24,8 @@ type
     // 描画先の変換・クリップを復元する。引数の画像や Target を保持・解放しない。
     procedure Draw(Target: TGPGraphics; const Destination: TRect;
       Orientation: Integer; PhoneColor: ARGB = $FF303840;
-      ScreenColor: ARGB = $FFFFFFFF; ScreenImage: TGPBitmap = nil);
+      ScreenColor: ARGB = $FFFFFFFF; ScreenImage: TGPBitmap = nil;
+      ImageRect: PGPRectF = nil);
     // Clipped は描画対象の映像内矩形。透明 PARGB 面を返す。空矩形では nil。
     // 戻り値は本インスタンス所有。次の呼出し／破棄まで有効で、呼出側は解放しない。
     // ScreenImage に以前返した描画面自身を渡さない。
@@ -116,10 +117,11 @@ begin
 end;
 
 procedure TSmartphoneRenderer.Draw(Target: TGPGraphics; const Destination: TRect;
-  Orientation: Integer; PhoneColor, ScreenColor: ARGB; ScreenImage: TGPBitmap);
+  Orientation: Integer; PhoneColor, ScreenColor: ARGB; ScreenImage: TGPBitmap;
+  ImageRect: PGPRectF);
 var
   W, H: Integer;
-  State: GraphicsState;
+  State, ImageState: GraphicsState;
   Screen: TGPGraphicsPath;
 begin
   if (Target = nil) or Destination.IsEmpty then Exit;
@@ -137,7 +139,17 @@ begin
     Target.SetClip(Screen, CombineModeIntersect);
     FillRound(Target, 14, 18, W - 28, H - 36, 29, ScreenColor or $FF000000);
     if (ScreenImage <> nil) and (ScreenImage.GetLastStatus = Ok) then
-      Target.DrawImage(ScreenImage, 14, 18, W - 28, H - 36);
+      if ImageRect=nil then
+        Target.DrawImage(ScreenImage, 14, 18, W - 28, H - 36)
+      else
+      begin
+        // 任意の中央撮影領域。省略時は従来の全面表示を維持する。
+        ImageState:=Target.Save;
+        try
+          Target.SetClip(ImageRect^,CombineModeIntersect);
+          Target.DrawImage(ScreenImage,ImageRect^);
+        finally Target.Restore(ImageState); end;
+      end;
     // 筐体に固定されたカメラ・スピーカーは横向き時に左辺へ移す。
     if W > H then
       FillRound(Target, 26, H / 2 - 42, 16, 84, 8, $FF101418)
