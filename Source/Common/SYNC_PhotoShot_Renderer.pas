@@ -156,11 +156,11 @@ begin
   if Kind=0 then
   begin
     SmartphoneSize(Orientation,W,H);
-    // 撮影領域は横4:3／縦3:4。余った両端を操作帯として残す。
+    // 撮影領域を広く取り、長辺の両端だけを細い操作帯として残す。
     if Orientation=1 then
-      Screen:=MakeRect(Single(154),Single(18),Single(512),Single(384))
+      Screen:=MakeRect(Single(104),Single(18),Single(612),Single(384))
     else
-      Screen:=MakeRect(Single(14),Single((H-392*4/3)/2),Single(392),Single(392*4/3));
+      Screen:=MakeRect(Single(14),Single(103),Single(392),Single(614));
   end
   else
   begin
@@ -233,10 +233,10 @@ begin
     0:
       if Orientation=1 then
       begin
-        Caption(G,'PHOTO',48,134,90,24,14,$EEFFFFFF);
-        Caption(G,'HDR',48,164,90,24,13,$EEFFFFFF);
+        Caption(G,'PHOTO',44,134,56,24,11,$EEFFFFFF);
+        Caption(G,'HDR',44,164,56,24,11,$EEFFFFFF);
       end
-      else Caption(G,'PHOTO  HDR',Screen.X+12,76,Screen.Width-24,24,16,$EEFFFFFF);
+      else Caption(G,'PHOTO  HDR',Screen.X+12,60,Screen.Width-24,24,16,$EEFFFFFF);
     1: Caption(G,'AUTO  12M',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
     2: Caption(G,'M  RAW',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
     3: Caption(G,'INSTANT  08',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
