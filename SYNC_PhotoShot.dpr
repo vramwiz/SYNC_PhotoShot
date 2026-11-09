@@ -61,7 +61,8 @@ end;
 exports
   InitializePlugin name 'InitializePlugin',
   UninitializePlugin name 'UninitializePlugin',
-  GetFilterPluginTable name 'GetFilterPluginTable';
+  GetFilterPluginTable name 'GetFilterPluginTable',
+  SetPhotoShotLogger name 'InitializeLogger';
 
 begin
 end.

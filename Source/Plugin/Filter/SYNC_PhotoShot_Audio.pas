@@ -8,7 +8,7 @@ interface
 // 全処理はホストがコールバックを始める前に呼ぶ。終了時はホストの処理停止後に解放する。
 procedure InitializePhotoShotAudio;
 procedure ReleasePhotoShotAudio;
-procedure RegisterPhotoShotAudioParameter;
+procedure RegisterPhotoShotAudioParameter(IncludeGroup: Boolean = True);
 // Audio は SDK FILTER_PROC_AUDIO。入力は借用し、合成対象サンプルだけホストへ書き戻す。
 function PhotoShotProcAudio(Audio: Pointer): Byte; cdecl;
 
@@ -70,9 +70,9 @@ begin
   for I := 0 to 3 do Sounds[I] := Default(TPhotoShotPCM);
 end;
 
-procedure RegisterPhotoShotAudioParameter;
+procedure RegisterPhotoShotAudioParameter(IncludeGroup: Boolean);
 begin
-  AddGroup(AudioGroup, '音声設定', 1);
+  if IncludeGroup then AddGroup(AudioGroup, '音声設定', 1);
   AddTrack(VolumeItem, 'シャッター音量', 100, 0, 100, 1);
 end;
 
@@ -90,7 +90,7 @@ begin
     if (A = nil) or (A^.Scene = nil) or (A^.Object_ = nil) or
       not Assigned(A^.GetSampleData) or not Assigned(A^.SetSampleData) then Exit;
     if VolumeItem.Value <= 0 then Exit;
-    S := ReadPhotoShotParameters;
+    S := ReadPhotoShotParameters(A^.Scene^.Rate, A^.Scene^.Scale);
     Kind := EnsureRange(S.CameraKind, 0, 3);
     if Length(Sounds[Kind].Samples) = 0 then Exit;
     N := A^.Object_^.SampleNum;

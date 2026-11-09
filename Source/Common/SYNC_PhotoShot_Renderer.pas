@@ -30,6 +30,11 @@ type
       Frame: Integer; CapturedSettings: PPhotoShotSettings = nil): TGPBitmap;
   end;
 
+// カメラ画面の画面上領域を入力から採取する。本体と写真で共用し、UIを含まない。
+// Source は借用、戻り値は呼出側が Free。範囲外とゼロ倍率は不透明黒。
+// Pose は実描画姿勢、S は画角・内部設定。座標は入力画像の左上を原点とする。
+function RenderPhotoShotView(Source:TGPBitmap; const S:TPhotoShotSettings;
+  const Pose:TPhotoShotState; W,H:Integer):TGPBitmap;
 implementation
 
 uses
@@ -38,6 +43,11 @@ uses
 type
   TBytes = TArray<Byte>;
 
+procedure RequireGdi(Status:TStatus; const Operation:string);
+begin
+  if Status<>Ok then
+    raise Exception.CreateFmt('PhotoShot GDI+ %s failed: status %d',[Operation,Ord(Status)]);
+end;
 function NewBitmap(W, H: Integer): TGPBitmap;
 begin
   Result := TGPBitmap.Create(Max(1, W), Max(1, H), PixelFormat32bppPARGB);
@@ -94,7 +104,7 @@ end;
 
 // 平行移動・回転・倍率は画像中心を基準にする。色行列で全体の不透明度だけを変更。
 procedure Place(G: TGPGraphics; Image: TGPBitmap;
-  CX,CY,Scale,Angle,Opacity: Double);
+  CX,CY,Scale,Angle,Opacity,VerticalScale: Double);
 var Saved: GraphicsState; A: TGPImageAttributes; M: TColorMatrix; I: Integer;
   W,H: Single;
 begin
@@ -109,8 +119,9 @@ begin
     A.SetColorMatrix(M);
     G.TranslateTransform(CX,CY);
     G.RotateTransform(Angle);
-    G.ScaleTransform(Scale,Scale);
-    G.DrawImage(Image,MakeRect(-W/2,-H/2,W,H),0,0,W,H,UnitPixel,A);
+    // 起き上がりは縦圧縮で近似する。終端は厳密に1となり通常描画と一致する。
+    G.ScaleTransform(Scale,Scale * EnsureRange(VerticalScale,0.01,1.0));
+    RequireGdi(G.DrawImage(Image,MakeRect(-W/2,-H/2,W,H),0,0,W,H,UnitPixel,A),'Place');
   finally G.Restore(Saved); A.Free; end;
 end;
 
@@ -177,27 +188,53 @@ begin
   end;
 end;
 
-// 中心基準 cover。内部座標は入力画像のピクセル単位で、外枠の座標には影響しない。
-// 低倍率で足りなくなる部分は黒背景にし、元画像の外を不正に読み取らない。
-function Interior(Source: TGPBitmap; W,H: Integer; const S: TPhotoShotSettings): TGPBitmap;
-var G: TGPGraphics; Ratio,DW,DH: Double;
+// カメラ矩形から入力へのアフィン写像を逆に解き、入力画像の3頂点を出力へ写す。
+// GPU/ホストの完成画像を逆取得せず、加工前入力を直接サンプリングする。
+function RenderPhotoShotView(Source:TGPBitmap; const S:TPhotoShotSettings;
+  const Pose:TPhotoShotState; W,H:Integer):TGPBitmap;
+var G:TGPGraphics; BodyW,BodyH:Integer; Screen:TGPRectF;
+  Scale,Vertical,Zoom,CosA,SinA,CenterX,CenterY,DX,DY,SpanX,SpanY:Double;
+  Points:array[0..2] of TGPPointF;
+  function ToOutput(X,Y:Double):TGPPointF;
+  var LX,LY:Double;
+  begin
+    X:=X-CenterX; Y:=Y-CenterY;
+    LX:=CosA*X+SinA*Y+S.InnerX;
+    LY:=-SinA*X+CosA*Y+S.InnerY;
+    Result:=MakePoint(Single(W*(0.5+LX/SpanX)),Single(H*(0.5+LY/SpanY)));
+  end;
 begin
   Result:=NewBitmap(W,H);
+  try
   G:=TGPGraphics.Create(Result);
   try
     G.Clear($FF000000);
+    Scale:=Pose.CameraScale/100;
+    if (Source=nil) or (Scale<=0) or (Pose.CameraVerticalScale<=0) then Exit;
+    CameraGeometry(S.CameraKind,S.Orientation,BodyW,BodyH,Screen);
+    Vertical:=EnsureRange(Pose.CameraVerticalScale,0.01,1.0);
+    Zoom:=Max(0.01,S.InnerZoom/100);
+    CosA:=Cos(DegToRad(Pose.CameraRotation)); SinA:=Sin(DegToRad(Pose.CameraRotation));
+    DX:=(Screen.X+Screen.Width/2-BodyW/2)*Scale;
+    DY:=(Screen.Y+Screen.Height/2-BodyH/2)*Scale*Vertical;
+    CenterX:=Source.GetWidth/2+Pose.CameraX+CosA*DX-SinA*DY;
+    CenterY:=Source.GetHeight/2+Pose.CameraY+SinA*DX+CosA*DY;
+    SpanX:=Screen.Width*Scale/Zoom;
+    SpanY:=Screen.Height*Scale*Vertical/Zoom;
+    Points[0]:=ToOutput(0,0); Points[1]:=ToOutput(Source.GetWidth,0);
+    Points[2]:=ToOutput(0,Source.GetHeight);
     G.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-    if Source<>nil then
-    begin
-      Ratio:=Max(W/Source.GetWidth,H/Source.GetHeight)*Max(0.01,S.InnerZoom/100);
-      DW:=Source.GetWidth*Ratio; DH:=Source.GetHeight*Ratio;
-      G.DrawImage(Source,MakeRect(Single((W-DW)/2+S.InnerX*Ratio),
-        Single((H-DH)/2+S.InnerY*Ratio),Single(DW),Single(DH)));
-    end;
+    G.SetPixelOffsetMode(PixelOffsetModeHalf);
+    RequireGdi(G.DrawImage(Source,PGPPointF(@Points[0]),3,0,0,Single(Source.GetWidth),
+      Single(Source.GetHeight),UnitPixel),'Sample view');
   finally G.Free; end;
+  // 撮影時の内部ぼかしは写真にも残す。背景のぼかし・暗さは焼き込まない。
   Blur(Result,Round(EnsureRange(S.InnerBlur,0.0,100.0)*Min(W,H)/1000));
+  except
+    Result.Free;
+    raise;
+  end;
 end;
-
 procedure CameraUI(G: TGPGraphics; const Screen: TGPRectF; Kind,Orientation: Integer);
 var P: TGPPen; CX,CY,R: Single;
 begin
@@ -209,7 +246,12 @@ begin
     G.DrawLine(P,CX-R,CY+R,CX-R/2,CY+R); G.DrawLine(P,CX-R,CY+R,CX-R,CY+R/2);
     G.DrawLine(P,CX+R,CY+R,CX+R/2,CY+R); G.DrawLine(P,CX+R,CY+R,CX+R,CY+R/2);
   finally P.Free; end;
-  Caption(G,'PHOTO',Screen.X+12,Screen.Y+44,Screen.Width-24,24,16,$EEFFFFFF);
+  case Kind of
+    0: Caption(G,'PHOTO  HDR',Screen.X+12,Screen.Y+44,Screen.Width-24,24,16,$EEFFFFFF);
+    1: Caption(G,'AUTO  12M',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
+    2: Caption(G,'M  RAW',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
+    3: Caption(G,'INSTANT  08',Screen.X+12,Screen.Y+18,Screen.Width-24,24,16,$EEFFFFFF);
+  end;
   if (Kind=0) and (Orientation=0) then
   begin
     Ellipse(G,CX-27,Screen.Y+Screen.Height-86,54,54,$DDFFFFFF);
@@ -219,12 +261,15 @@ begin
   else if Kind=0 then
     Ellipse(G,Screen.X+Screen.Width-82,CY-27,54,54,$EEFFFFFF)
   else
-    Caption(G,'AF-S   1/125   F2.8   ISO 100',Screen.X+8,Screen.Y+Screen.Height-28,
-      Screen.Width-16,22,13,$EEFFFFFF);
+    case Kind of
+      1: Caption(G,'AUTO   1/250   F4.0',Screen.X+8,Screen.Y+Screen.Height-28,Screen.Width-16,22,13,$EEFFFFFF);
+      2: Caption(G,'AF-S   1/125   F2.8   ISO 100',Screen.X+8,Screen.Y+Screen.Height-28,Screen.Width-16,22,13,$EEFFFFFF);
+      3: Caption(G,'FLASH ON   EXP 0',Screen.X+8,Screen.Y+Screen.Height-28,Screen.Width-16,22,13,$EEFFFFFF);
+    end;
 end;
 
 function CameraBitmap(Phone: TSmartphoneRenderer; Source: TGPBitmap;
-  const S: TPhotoShotSettings): TGPBitmap;
+  const S, SampleSettings:TPhotoShotSettings; const SamplePose:TPhotoShotState):TGPBitmap;
 var G: TGPGraphics; Inner: TGPBitmap; W,H: Integer; Screen: TGPRectF;
 begin
   CameraGeometry(S.CameraKind,S.Orientation,W,H,Screen);
@@ -232,7 +277,7 @@ begin
   G:=TGPGraphics.Create(Result);
   try
     G.Clear(0); G.SetSmoothingMode(SmoothingModeAntiAlias);
-    Inner:=Interior(Source,Round(Screen.Width),Round(Screen.Height),S);
+    Inner:=RenderPhotoShotView(Source,SampleSettings,SamplePose,Round(Screen.Width),Round(Screen.Height));
     if S.CameraKind=0 then
       Phone.Draw(G,Rect(0,0,W,H),S.Orientation,$FF303840,$FF000000,Inner)
     else
@@ -274,7 +319,8 @@ begin
 end;
 
 // 写真はシャッター時の内部トリミングを維持し、背景のぼかし・暗さを焼き込まない。
-function PhotoBitmap(Source: TGPBitmap; const S:TPhotoShotSettings; CanvasW,CanvasH:Integer):TGPBitmap;
+function PhotoBitmap(Source:TGPBitmap; const S:TPhotoShotSettings;
+  const Pose:TPhotoShotState; CanvasW,CanvasH:Integer):TGPBitmap;
 var W,H,PW,PH,Border,Bottom:Integer; Screen:TGPRectF; Ratio:Double;
   Photo:TGPBitmap; G:TGPGraphics;
 begin
@@ -284,12 +330,23 @@ begin
   Border:=0; Bottom:=0;
   if S.PreviewStyle>0 then begin Border:=Max(8,Round(Min(PW,PH)*0.035)); Bottom:=Border; end;
   if S.PreviewStyle=2 then Bottom:=Border*4;
-  Photo:=Interior(Source,PW,PH,S);
-  Result:=NewBitmap(PW+2*Border,PH+Border+Bottom);
-  G:=TGPGraphics.Create(Result);
+  Result:=nil; Photo:=nil; G:=nil;
   try
+    try
+      Photo:=RenderPhotoShotView(Source,S,Pose,PW,PH);
+      Result:=NewBitmap(PW+2*Border,PH+Border+Bottom);
+      G:=TGPGraphics.Create(Result);
     G.Clear($FFFFFFFF);
-    G.DrawImage(Photo,Border,Border,PW,PH);
+    RequireGdi(G.DrawImage(Photo,Border,Border,PW,PH),'Photo content');
+    // カメラ別の撮影情報は仮数値。日付は仕様未確定のため追加しない。
+    G.TranslateTransform(Border,Border);
+    G.ScaleTransform(PW/Screen.Width,PH/Screen.Height);
+    CameraUI(G,MakeRect(Single(0),Single(0),Screen.Width,Screen.Height),S.CameraKind,S.Orientation);
+    except
+      FreeAndNil(G);
+      FreeAndNil(Result);
+      raise;
+    end;
   finally G.Free; Photo.Free; end;
 end;
 
@@ -355,9 +412,9 @@ end;
 function TPhotoShotRenderer.Render(Current,Snapshot:TGPBitmap;
   const Settings:TPhotoShotSettings; Frame:Integer;
   CapturedSettings:PPhotoShotSettings):TGPBitmap;
-var State:TPhotoShotState; G:TGPGraphics; Camera,Photo,CameraSource:TGPBitmap;
+var State,CapturePose:TPhotoShotState; G:TGPGraphics; Camera,Photo,CameraSource:TGPBitmap;
   W,H:Integer; Fit,Shake,ShutterProgress:Double;
-  PhotoSettings,CameraSettings:TPhotoShotSettings; FrozenCamera:Boolean;
+  PhotoSettings:TPhotoShotSettings; FrozenCamera:Boolean;
 begin
   Result:=nil;
   if (Current=nil) or (Current.GetWidth=0) or (Current.GetHeight=0) then Exit;
@@ -365,27 +422,21 @@ begin
   if (FOutput=nil) or (Integer(FOutput.GetWidth)<>W) or (Integer(FOutput.GetHeight)<>H) then
   begin FreeAndNil(FOutput); FOutput:=NewBitmap(W,H); end;
   State:=EvaluatePhotoShot(Settings,Frame,W,H);
-  // 撮影内容だけを固定し、写真の飾り・位置や背景への後編集は妨げない。
-  PhotoSettings:=Settings; CameraSettings:=Settings;
+  // 確定写真は撮影時の全カメラ設定と実姿勢で採取し直す。写真枠と最終配置は現在値。
+  PhotoSettings:=Settings;
   if CapturedSettings<>nil then
   begin
-    PhotoSettings.CameraKind:=CapturedSettings^.CameraKind;
-    PhotoSettings.Orientation:=CapturedSettings^.Orientation;
-    PhotoSettings.InnerX:=CapturedSettings^.InnerX;
-    PhotoSettings.InnerY:=CapturedSettings^.InnerY;
-    PhotoSettings.InnerZoom:=CapturedSettings^.InnerZoom;
-    PhotoSettings.InnerBlur:=CapturedSettings^.InnerBlur;
-    CameraSettings.InnerX:=CapturedSettings^.InnerX;
-    CameraSettings.InnerY:=CapturedSettings^.InnerY;
-    CameraSettings.InnerZoom:=CapturedSettings^.InnerZoom;
-    CameraSettings.InnerBlur:=CapturedSettings^.InnerBlur;
+    PhotoSettings:=CapturedSettings^;
+    PhotoSettings.PreviewStyle:=Settings.PreviewStyle;
   end;
+  CapturePose:=EvaluatePhotoShot(PhotoSettings,0,W,H);
+  CapturePose:=EvaluatePhotoShot(PhotoSettings,CapturePose.ShutterFrame,W,H);
   // 1 フレームでも視覚ピークを表示する。撮影時刻・段階の長さ自体は変更しない。
   ShutterProgress:=State.Progress;
   if (State.Phase=2) and (Settings.ShutterFrames=1) then ShutterProgress:=0.5;
   G:=TGPGraphics.Create(FOutput); Camera:=nil; Photo:=nil;
   try
-    G.Clear(0); G.DrawImage(Current,0,0,W,H);
+    RequireGdi(G.Clear(0),'Output clear'); RequireGdi(G.DrawImage(Current,0,0,W,H),'Background');
   finally G.Free; end;
   Blur(FOutput,Round(EnsureRange(Settings.BackgroundBlur,0.0,100.0)*Min(W,H)/1000));
   G:=TGPGraphics.Create(FOutput);
@@ -402,22 +453,22 @@ begin
       // 撮影画像が未取得の場合は常に Current のまま。再生履歴は使用しない。
       if (State.Phase=2) and (Settings.ShutterEffect=10) and (ShutterProgress<0.5) then
       begin CameraSource:=Current; FrozenCamera:=False; end;
-      if FrozenCamera then Camera:=CameraBitmap(FPhone,CameraSource,CameraSettings)
-      else Camera:=CameraBitmap(FPhone,CameraSource,Settings);
+      if FrozenCamera then Camera:=CameraBitmap(FPhone,CameraSource,Settings,PhotoSettings,CapturePose)
+      else Camera:=CameraBitmap(FPhone,CameraSource,Settings,Settings,State);
       Shake:=0;
       if (State.Phase=2) and (Settings.ShutterEffect=3) then
         if Settings.ShutterFrames=1 then Shake:=Min(W,H)*0.012
         else Shake:=Sin(ShutterProgress*Pi*8)*Sin(ShutterProgress*Pi)*Min(W,H)*0.012;
       Place(G,Camera,W/2+State.CameraX+Shake,H/2+State.CameraY-Shake/2,
-        State.CameraScale/100,State.CameraRotation,State.CameraOpacity);
+        State.CameraScale/100,State.CameraRotation,State.CameraOpacity,State.CameraVerticalScale);
     end;
     if State.PreviewVisible and (Snapshot<>nil) then
     begin
-      Photo:=PhotoBitmap(Snapshot,PhotoSettings,W,H);
+      Photo:=PhotoBitmap(Snapshot,PhotoSettings,CapturePose,W,H);
       Fit:=Min(W/Photo.GetWidth,H/Photo.GetHeight);
       if Settings.PreviewStyle>0 then Fit:=Fit*0.86;
       Place(G,Photo,W/2+State.PreviewX,H/2+State.PreviewY,
-        Fit*State.PreviewScale/100,State.PreviewRotation,State.PreviewOpacity);
+        Fit*State.PreviewScale/100,State.PreviewRotation,State.PreviewOpacity,State.PreviewVerticalScale);
     end;
     if State.Phase=2 then
       if (Settings.ShutterFrames=1) and (Settings.ShutterEffect=8) then

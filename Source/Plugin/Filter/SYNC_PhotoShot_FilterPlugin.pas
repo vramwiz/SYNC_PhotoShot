@@ -147,7 +147,8 @@ var
   Settings, CapturedSettings: TPhotoShotSettings;
   State: TPhotoShotState;
 begin
-  Settings := ReadPhotoShotParameters;
+  if Video^.Scene = nil then Exit;
+  Settings := ReadPhotoShotParameters(Video^.Scene^.Rate, Video^.Scene^.Scale);
   Current := CapturePhotoShotInput(Video);
   if Current = nil then Exit;
   Snapshot := nil;
@@ -214,7 +215,6 @@ begin
       '写真撮影', 'SYNC', '写真を準備して撮影演出を再現（編集後は再準備）',
       PhotoShotProcVideo, PhotoShotProcAudio);
     RegisterPhotoShotParameters;
-    RegisterPhotoShotAudioParameter;
     RegisterPhotoShotPreparationButtons;
     GetPluginTable^.Func_Create := PhotoShotCreate;
     GetPluginTable^.Func_Destroy := PhotoShotDestroy;

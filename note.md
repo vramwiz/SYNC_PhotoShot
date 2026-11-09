@@ -87,3 +87,12 @@ D:\aviutl2_v2.1.16\aviutl2.exe に変更した。
 - 実機未確認の点と模擬試験の結果を区別する。追加テスト用pluginは禁止。
 - 復元バックアップ: Backup/BeforeReferenceRebuild_20261109_101022。
 - 最新の検証記録: Tests/IMPLEMENTATION_STATUS.txt。
+## 時間の秒単位化
+
+- 時間6項目は新名「…（秒）」、範囲0～600、step 0.01。旧フレーム名は登録しない。
+- 秒値は TPhotoShotSettings の *Seconds、映像演出用 *Frames は ResolvePhotoShotTiming で導出する。
+- SDK Scene.Rate/Scale、準備ボタンでは Edit.Info.Rate/Scale を必ず使い、無効値は例外として安全に中止する。30 fps への暗黙 fallback はしない。
+- 累積秒境界を Round で量子化して隣接差から段階長を作る。実際の撮影 frame を音声のサンプル開始位置にも使う。
+- 準備済み画像の識別情報には Rate/Scale も保存し、fps変更後は写真を失効させる。
+- 時間以外の登録名は維持。時間だけは旧保存フレーム値を秒に誤解釈させないため例外的に新名へ変更。
+- 旧時間値・中間点の自動移行は行わず、ユーザーが秒で再指定する。実AviUtl2で新名の保存・再読込、旧プロジェクト更新は未検証。

@@ -9,13 +9,14 @@ uses
 
 // SetupPluginTable 後に一度呼ぶ。項目を登録順に追加し、初期値を設定する。
 procedure RegisterPhotoShotParameters;
-// 現在のホスト補間値を独立したレコードへコピーする。状態保存や時間補間は行わない。
-function ReadPhotoShotParameters: TPhotoShotSettings;
+// 現在のホスト補間値を独立コピーし、Rate/Scale で累積秒境界をフレームへ変換する。
+// 時間項目だけは旧フレーム名を使わず（秒）付きの新名。旧保存値の自動移行はしない。
+function ReadPhotoShotParameters(Rate, Scale: Integer): TPhotoShotSettings;
 
 implementation
 
 uses
-  System.Math, AviUtl2FilterTypes, PluginFilterTable;
+  AviUtl2FilterTypes, PluginFilterTable, SYNC_PhotoShot_Audio;
 
 var
   CameraKind, Orientation, Shutter, EnterAnim, ExitAnim, PreviewStyle,
@@ -24,6 +25,7 @@ var
   DirectionOptions: array[0..2] of TFILTER_ITEM_SELECT_ITEM;
   ShutterOptions: array[0..11] of TFILTER_ITEM_SELECT_ITEM;
   AnimationOptions: array[0..7] of TFILTER_ITEM_SELECT_ITEM;
+  EnterAnimationOptions: array[0..9] of TFILTER_ITEM_SELECT_ITEM;
   PreviewOptions: array[0..3] of TFILTER_ITEM_SELECT_ITEM;
   Groups: array[0..6] of TFILTER_ITEM_GROUP;
   Tracks: array[0..22] of TFILTER_ITEM_TRACK;
@@ -60,48 +62,63 @@ begin
     AnimationOptions[I].Name := AnimNames[I];
     AnimationOptions[I].Value := I;
   end;
+  // 既存値0..6は不変。追加は7,8に限定し、退場・写真登場の選択肢は変えない。
+  for I := 0 to 6 do EnterAnimationOptions[I] := AnimationOptions[I];
+  EnterAnimationOptions[2].Name := 'ズームイン';
+  EnterAnimationOptions[7].Name := 'ズームアウト';
+  EnterAnimationOptions[7].Value := 7;
+  EnterAnimationOptions[8].Name := '起き上がり';
+  EnterAnimationOptions[8].Value := 8;
+  // 末尾[9]はゼロ初期化されたnull終端を保持する。
   PreviewOptions[0].Name := '全体表示';
   PreviewOptions[1].Name := '白枠付き写真';
   PreviewOptions[1].Value := 1;
   PreviewOptions[2].Name := 'インスタント写真風';
   PreviewOptions[2].Value := 2;
+  // 保存済みの項目名・数値は保ち、実際の登録順を処理の時系列に合わせる。
+  // カメラ共通設定は演出段階から独立させ、先頭へ置く。
+  AddGroup(Groups[4], 'カメラ設定', 1);
   AddSelect(CameraKind, 'カメラ種類', S.CameraKind, @CameraOptions[0]);
   AddSelect(Orientation, 'カメラ方向', S.Orientation, @DirectionOptions[0]);
-  AddSelect(Shutter, 'シャッター演出', S.ShutterEffect, @ShutterOptions[0]);
-  AddGroup(Groups[0], 'カメラ本体', 1);
   AddTrack(Tracks[0], 'X', S.X, -32768, 32768, 1);
   AddTrack(Tracks[1], 'Y', S.Y, -32768, 32768, 1);
   AddTrack(Tracks[2], '拡大率', S.Scale, 0, 1000, 0.1);
   AddTrack(Tracks[3], '回転', S.Rotation, -3600, 3600, 0.1);
   AddTrack(Tracks[4], '透明度', 100-S.Opacity, 0, 100, 0.1);
-  AddGroup(Groups[1], 'カメラ内部', 1);
+
+  AddGroup(Groups[0], '撮影前', 1);
+  AddSelect(EnterAnim, '登場演出', S.CameraEnter, @EnterAnimationOptions[0]);
+  AddTrack(Tracks[9], '登場時間（秒）', S.EnterSeconds, 0, 600, 0.01);
+
+  AddGroup(Groups[1], '撮影中', 1);
+  // 現段階の演出はライブビューを表示して構えを維持する。架空の選択肢は追加しない。
+  AddTrack(Tracks[10], '撮影待機時間（秒）', S.WaitSeconds, 0, 600, 0.01);
   AddTrack(Tracks[5], '内部X', S.InnerX, -32768, 32768, 1);
   AddTrack(Tracks[6], '内部Y', S.InnerY, -32768, 32768, 1);
   AddTrack(Tracks[7], '内部ズーム', S.InnerZoom, 1, 1000, 0.1);
   AddTrack(Tracks[8], '内部ぼかし', S.InnerBlur, 0, 100, 1);
-  AddGroup(Groups[2], 'カメラ演出', 1);
-  AddSelect(EnterAnim, '登場演出', S.CameraEnter, @AnimationOptions[0]);
+  AddTrack(Tracks[19], '背景ぼかし', S.BackgroundBlur, 0, 100, 1);
+  AddTrack(Tracks[20], '背景暗さ', S.BackgroundDark, 0, 100, 0.1);
+
+  AddGroup(Groups[2], '撮影', 1);
+  AddSelect(Shutter, 'シャッター演出', S.ShutterEffect, @ShutterOptions[0]);
+  AddTrack(Tracks[11], 'シャッター時間（秒）', S.ShutterSeconds, 0, 600, 0.01);
+  RegisterPhotoShotAudioParameter(False);
   AddSelect(ExitAnim, '退場演出', S.CameraExit, @AnimationOptions[0]);
-  AddGroup(Groups[3], '時間設定（フレーム）', 1);
-  AddTrack(Tracks[9], '登場時間', S.EnterFrames, 0, 18000, 1);
-  AddTrack(Tracks[10], '撮影待機時間', S.WaitFrames, 0, 18000, 1);
-  AddTrack(Tracks[11], 'シャッター時間', S.ShutterFrames, 0, 18000, 1);
-  AddTrack(Tracks[12], '退場・切替時間', S.ExitFrames, 0, 18000, 1);
-  AddTrack(Tracks[13], 'プレビュー登場時間', S.PreviewFrames, 0, 18000, 1);
-  AddTrack(Tracks[14], 'プレビュー保持時間', S.HoldFrames, 0, 18000, 1);
-  AddGroup(Groups[4], 'プレビュー設定', 1);
-  AddSelect(PreviewStyle, 'プレビュー方式', S.PreviewStyle, @PreviewOptions[0]);
+  AddTrack(Tracks[12], '退場・切替時間（秒）', S.ExitSeconds, 0, 600, 0.01);
+
+  AddGroup(Groups[3], 'プレビュー', 1);
   AddSelect(PreviewAnim, 'プレビュー演出', S.PreviewEnter, @AnimationOptions[0]);
+  AddTrack(Tracks[13], 'プレビュー登場時間（秒）', S.PreviewSeconds, 0, 600, 0.01);
+  AddTrack(Tracks[14], 'プレビュー保持時間（秒）', S.HoldSeconds, 0, 600, 0.01);
+  AddSelect(PreviewStyle, 'プレビュー方式', S.PreviewStyle, @PreviewOptions[0]);
   AddTrack(Tracks[15], 'プレビューX', S.PreviewX, -32768, 32768, 1);
   AddTrack(Tracks[16], 'プレビューY', S.PreviewY, -32768, 32768, 1);
   AddTrack(Tracks[17], 'プレビュー拡大率', S.PreviewScale, 0, 1000, 0.1);
   AddTrack(Tracks[18], 'プレビュー回転', S.PreviewRotation, -3600, 3600, 0.1);
-  AddGroup(Groups[5], '背景設定', 1);
-  AddTrack(Tracks[19], '背景ぼかし', S.BackgroundBlur, 0, 100, 1);
-  AddTrack(Tracks[20], '背景暗さ', S.BackgroundDark, 0, 100, 0.1);
 end;
 
-function ReadPhotoShotParameters: TPhotoShotSettings;
+function ReadPhotoShotParameters(Rate, Scale: Integer): TPhotoShotSettings;
 begin
   Result := DefaultPhotoShotSettings;
   Result.CameraKind := CameraKind.Value;
@@ -120,18 +137,19 @@ begin
   Result.InnerY := Tracks[6].Value;
   Result.InnerZoom := Tracks[7].Value;
   Result.InnerBlur := Tracks[8].Value;
-  Result.EnterFrames := Round(EnsureRange(Tracks[9].Value, 0.0, 18000.0));
-  Result.WaitFrames := Round(EnsureRange(Tracks[10].Value, 0.0, 18000.0));
-  Result.ShutterFrames := Round(EnsureRange(Tracks[11].Value, 0.0, 18000.0));
-  Result.ExitFrames := Round(EnsureRange(Tracks[12].Value, 0.0, 18000.0));
-  Result.PreviewFrames := Round(EnsureRange(Tracks[13].Value, 0.0, 18000.0));
-  Result.HoldFrames := Round(EnsureRange(Tracks[14].Value, 0.0, 18000.0));
+  Result.EnterSeconds := Tracks[9].Value;
+  Result.WaitSeconds := Tracks[10].Value;
+  Result.ShutterSeconds := Tracks[11].Value;
+  Result.ExitSeconds := Tracks[12].Value;
+  Result.PreviewSeconds := Tracks[13].Value;
+  Result.HoldSeconds := Tracks[14].Value;
   Result.PreviewX := Tracks[15].Value;
   Result.PreviewY := Tracks[16].Value;
   Result.PreviewScale := Tracks[17].Value;
   Result.PreviewRotation := Tracks[18].Value;
   Result.BackgroundBlur := Tracks[19].Value;
   Result.BackgroundDark := Tracks[20].Value;
+  ResolvePhotoShotTiming(Result, Rate, Scale);
 end;
 
 end.

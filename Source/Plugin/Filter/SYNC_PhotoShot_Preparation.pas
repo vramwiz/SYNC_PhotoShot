@@ -8,6 +8,8 @@ interface
 uses
   AviUtl2FilterTypes, Winapi.GDIPOBJ, SYNC_PhotoShot_Timeline;
 
+// SDK logger2.h のホスト所有ハンドル。未提供ならデバッグ出力だけで動作する。
+procedure SetPhotoShotLogger(Logger: Pointer); cdecl;
 procedure InitializePhotoShotPreparation;
 procedure FinalizePhotoShotPreparation;
 procedure RegisterPhotoShotPreparationButtons;
@@ -35,10 +37,16 @@ const
   OBJECT_ORIGIN_FRAME_OFFSET = 100;
 
 type
+  TPhotoShotLogProc = procedure(Handle: Pointer; Message: PWideChar); cdecl;
+  PPhotoShotLogHandle = ^TPhotoShotLogHandle;
+  TPhotoShotLogHandle = record
+    Log, Info, Warn, Error, Verbose: TPhotoShotLogProc;
+  end;
   TSetCursorLayerFrame = procedure(Layer, Frame: Integer); cdecl;
   TPhotoIdentity = record
     Scene, Layer, StartFrame, EndFrame, RelativeFrame, AbsoluteFrame: Integer;
     SceneWidth, SceneHeight, SourceWidth, SourceHeight: Integer;
+      Rate, Scale: Integer;
     ObjectID, EffectID: Int64;
   end;
 
@@ -73,9 +81,15 @@ type
   end;
 
 var
+  HostLogger: PPhotoShotLogHandle;
   Preparation: TPreparation;
   PrepareButton, StatusButton, ClearButton: TFILTER_ITEM_BUTTON;
   PreparationGroup: TFILTER_ITEM_GROUP;
+
+procedure SetPhotoShotLogger(Logger: Pointer); cdecl;
+begin
+  HostLogger:=PPhotoShotLogHandle(Logger);
+end;
 
 function IdentityKey(Scene: Integer; ObjectID,EffectID: Int64): string;
 begin
@@ -176,13 +190,16 @@ begin
   M.Scene:=PEDIT_INFO(Edit^.Base.Info)^.SceneID;
   M.SceneWidth:=PEDIT_INFO(Edit^.Base.Info)^.Width;
   M.SceneHeight:=PEDIT_INFO(Edit^.Base.Info)^.Height;
+  M.Rate:=PEDIT_INFO(Edit^.Base.Info)^.Rate;
+  M.Scale:=PEDIT_INFO(Edit^.Base.Info)^.Scale;
   FLock.Acquire;
   try
     FStore.RemoveEffect(M.EffectID);
     FReady.Remove(IdentityKey(M.Scene,M.ObjectID,M.EffectID));
   finally FLock.Release; end;
   Range:=Edit^.Base.GetObjectLayerFrame(Obj);
-  S:=ReadPhotoShotParameters;
+  S:=ReadPhotoShotParameters(PEDIT_INFO(Edit^.Base.Info)^.Rate,
+    PEDIT_INFO(Edit^.Base.Info)^.Scale);
   Relative:=Int64(Max(0,S.EnterFrames))+Max(0,S.WaitFrames);
   Absolute:=Int64(Range.StartFrame)+Relative;
   if (M.ObjectID=0) or (M.EffectID=0) or (Relative>High(Integer)) or
@@ -238,6 +255,7 @@ begin
     if (Video^.Object_^.FrameS<>M.StartFrame) or (Video^.Object_^.FrameE<>M.EndFrame) or
       (Video^.Object_^.EffectLayer<>M.Layer) or (Video^.Scene^.Width<>M.SceneWidth) or
       (Video^.Scene^.Height<>M.SceneHeight) or
+      (Video^.Scene^.Rate<>M.Rate) or (Video^.Scene^.Scale<>M.Scale) or
       (Integer(Input.GetWidth)<>Video^.Object_^.Width) or
       (Integer(Input.GetHeight)<>Video^.Object_^.Height) then
     begin CancelLocked; FState:=3; Exit; end;
@@ -254,7 +272,11 @@ begin
     end
     else FState:=3;
   finally FLock.Release; end;
-  if Success then Notify('このエフェクトの写真を準備しました。編集後は再準備してください。',False);
+  if Success then Notify('このエフェクトの写真を準備しました。'+
+    '現在位置は撮影時刻です。写真プレビュー開始位置（0始まりのフレーム番号）: '+
+    IntToStr(Int64(M.AbsoluteFrame)+Max(0,Settings.ShutterFrames)+Max(0,Settings.ExitFrames))+
+    '（登場演出の開始瞬間は見えない場合があります）。'+
+    '元映像や撮影条件を編集した場合は再準備してください。',False);
 end;
 
 function TPreparation.CopyPhoto(Video: PFILTER_PROC_VIDEO; ShutterFrame: Integer;
@@ -271,6 +293,7 @@ begin
     if (ShutterFrame<>M.RelativeFrame) or (Video^.Object_^.FrameS<>M.StartFrame) or
       (Video^.Object_^.FrameE<>M.EndFrame) or (Video^.Object_^.EffectLayer<>M.Layer) or
       (Video^.Scene^.Width<>M.SceneWidth) or (Video^.Scene^.Height<>M.SceneHeight) or
+      (Video^.Scene^.Rate<>M.Rate) or (Video^.Scene^.Scale<>M.Scale) or
       (Video^.Object_^.Width<>M.SourceWidth) or (Video^.Object_^.Height<>M.SourceHeight) then
     begin
       FReady.Remove(Key); FStore.RemoveEffect(M.EffectID); FState:=0; Exit;
@@ -292,7 +315,8 @@ begin
   E:=Edit^.FindEffect(Obj,Effect); if E=nil then Exit;
   Key:=IdentityKey(PEDIT_INFO(Edit^.Base.Info)^.SceneID,Edit^.GetObjectID(Obj),Edit^.GetEffectID(E));
   Range:=Edit^.Base.GetObjectLayerFrame(Obj);
-  S:=ReadPhotoShotParameters; Relative:=Int64(Max(0,S.EnterFrames))+Max(0,S.WaitFrames);
+  S:=ReadPhotoShotParameters(PEDIT_INFO(Edit^.Base.Info)^.Rate,
+    PEDIT_INFO(Edit^.Base.Info)^.Scale); Relative:=Int64(Max(0,S.EnterFrames))+Max(0,S.WaitFrames);
   Info:=PEDIT_INFO(Edit^.Base.Info);
   FLock.Acquire;
   try
@@ -300,7 +324,7 @@ begin
     if FReady.TryGetValue(Key,M) and (M.StartFrame=Range.StartFrame) and
       (M.EndFrame=Range.EndFrame) and (M.Layer=Range.Layer) and
       (Int64(M.RelativeFrame)=Relative) and (M.SceneWidth=Info^.Width) and
-      (M.SceneHeight=Info^.Height) then
+      (M.SceneHeight=Info^.Height) and (M.Rate=Info^.Rate) and (M.Scale=Info^.Scale) then
       Text:='このエフェクトは写真準備済みです。'
     else if (FActive<>0) and (FPending.EffectID=Edit^.GetEffectID(E)) then
       Text:='撮影フレームへ移動／再描画して準備してください。30秒で待機を解除します。'
@@ -311,7 +335,7 @@ begin
 end;
 
 procedure TPreparation.WndProc(var Msg:TMessage);
-var Text:string; Flags:Cardinal;
+var Text:string; Failed:Boolean; Callback:TPhotoShotLogProc;
 begin
   try
     if Msg.Msg=WM_TIMER then
@@ -325,9 +349,14 @@ begin
       finally FLock.Release; end;
       if (Text<>'') and not FClosing and not FSilent then
       begin
-        Flags:=MB_OK or MB_ICONINFORMATION;
-        if Text[1]='1' then Flags:=MB_OK or MB_ICONWARNING;
-        Delete(Text,1,1); MessageBox(0,PChar(Text),'写真撮影',Flags);
+        // 描画スレッドの通知をUIスレッドへ受け渡す。モーダル表示も描画待機もしない。
+        Failed:=Text[1]='1'; Delete(Text,1,1);
+        if HostLogger<>nil then
+        begin
+          if Failed then Callback:=HostLogger^.Warn else Callback:=HostLogger^.Info;
+          if not Assigned(Callback) then Callback:=HostLogger^.Log;
+          if Assigned(Callback) then Callback(HostLogger,PChar('写真撮影: '+Text));
+        end;
       end;
       Exit;
     end;
@@ -362,6 +391,7 @@ begin
   except on E:Exception do if Preparation<>nil then Preparation.Notify(E.Message,True); end;
 end;
 
+// SDK logger2.h のホスト所有ハンドル。未提供ならデバッグ出力だけで動作する。
 procedure InitializePhotoShotPreparation;
 begin
   if Preparation=nil then Preparation:=TPreparation.Create;
@@ -370,6 +400,7 @@ end;
 procedure FinalizePhotoShotPreparation;
 begin
   FreeAndNil(Preparation);
+  HostLogger:=nil;
 end;
 
 procedure RegisterPhotoShotPreparationButtons;
