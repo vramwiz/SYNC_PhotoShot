@@ -1,0 +1,118 @@
+[
+    {
+        "id":  "VRAMWIZ.SYNC_PhotoShot",
+        "name":  "写真撮影",
+        "type":  "フィルタプラグイン",
+        "summary":  "スマホなどのカメラ内ライブビューとシャッター演出を描画",
+        "description":  "https://raw.githubusercontent.com/vramwiz/SYNC_PhotoShot/refs/heads/main/README.md",
+        "author":  "VRAMの魔術師",
+        "repoURL":  "https://github.com/vramwiz/SYNC_PhotoShot/",
+        "licenses":  [
+                         {
+                             "type":  "確認中（GPL-3.0の既存コードを含む）",
+                             "isCustom":  true,
+                             "copyrights":  [
+                                                {
+                                                    "years":  "2026",
+                                                    "holder":  "VRAMの魔術師"
+                                                }
+                                            ],
+                             "licenseBody":  "PhotoShot独自部分の公開ライセンスと内蔵音源の再配布条件は最終確認待ちです。既存コードにはGPL v3、MIT、CC0-1.0の対象部分が含まれます。各対象の許諾は変更しません。詳細と本文は同梱LICENSE.md、THIRD_PARTY_NOTICES.mdおよび各ライセンス文書を参照してください。この確認中の記述は新たな利用許諾を与えるものではありません。"
+                         }
+                     ],
+        "tags":  [
+                     "カメラ",
+                     "写真",
+                     "スマートフォン",
+                     "シャッター",
+                     "アニメーション"
+                 ],
+        "dependencies":  [
+
+                         ],
+        "images":  [
+
+                   ],
+        "installer":  {
+                          "source":  {
+                                         "direct":  null,
+                                         "github":  {
+                                                        "owner":  "vramwiz",
+                                                        "repo":  "SYNC_PhotoShot",
+                                                        "pattern":  "^SYNC_PhotoShot\\.zip$"
+                                                    }
+                                     },
+                          "install":  [
+                                          {
+                                              "action":  "download"
+                                          },
+                                          {
+                                              "action":  "extract"
+                                          },
+                                          {
+                                              "action":  "copy",
+                                              "from":  "{tmp}/SYNC_PhotoShot",
+                                              "to":  "{pluginsDir}/SYNC_PhotoShot"
+                                          }
+                                      ],
+                          "uninstall":  [
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/SYNC_PhotoShot.auf2"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/README.md"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/LICENSE.md"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/THIRD_PARTY_NOTICES.md"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/Source/Lib/Smartphone/LICENSE.SYNC_Mine.txt"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/ThirdParty/LICENSE.AviUtl2-SDK.txt"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/ThirdParty/LICENSE.SYNC_RhythmShooter.txt"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/ThirdParty/MP3Decoder/LICENSE.md"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/ThirdParty/MP3Decoder/provenance.json"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/ThirdParty/MP3Decoder/CORE_CHANGES.md"
+                                            },
+                                            {
+                                                "action":  "delete",
+                                                "path":  "{pluginsDir}/SYNC_PhotoShot/ThirdParty/MP3Decoder/PHOTOSHOT_RESOURCE_CHANGES.md"
+                                            }
+                                        ]
+                      },
+        "version":  [
+                        {
+                            "version":  "v1.0.0",
+                            "release_date":  "2026-11-15",
+                            "file":  [
+                                         {
+                                             "path":  "{pluginsDir}/SYNC_PhotoShot/SYNC_PhotoShot.auf2",
+                                             "XXH3_128":  "73c91f6dbbb8972c70422d30989e80f1"
+                                         }
+                                     ]
+                        }
+                    ]
+    }
+]

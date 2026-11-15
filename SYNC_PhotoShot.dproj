@@ -87,7 +87,7 @@ if exist "$(OUTPUTDIR)$(PROJECTNAME).rsm" del /Q "$(OUTPUTDIR)$(PROJECTNAME).rsm
         <Manifest_File>(なし)</Manifest_File>
         <AppDPIAwarenessMode>none</AppDPIAwarenessMode>
         <DCC_ExeOutput>C:\ProgramData\aviutl2\Plugin\SYNC_PhotoShot\</DCC_ExeOutput>
-        <Debugger_HostApplication>D:\aviutl2_v2.1.16\aviutl2.exe</Debugger_HostApplication>
+        <Debugger_HostApplication>D:\aviutl2_v2.1.17\aviutl2.exe</Debugger_HostApplication>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
@@ -151,9 +151,7 @@ if exist "$(OUTPUTDIR)$(PROJECTNAME).rsm" del /Q "$(OUTPUTDIR)$(PROJECTNAME).rsm
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent><![CDATA[copy /Y "$(OUTPUTDIR)$(PROJECTNAME).dll" "$(OUTPUTDIR)$(PROJECTNAME).auf2"
-if errorlevel 1 exit /b 1
-if exist "$(OUTPUTDIR)$(PROJECTNAME).dll" del /Q "$(OUTPUTDIR)$(PROJECTNAME).dll"]]></PostBuildEvent>
+        <PostBuildEvent><![CDATA[copy /Y "$(OUTPUTDIR)$(PROJECTNAME).dll" "$(OUTPUTDIR)$(PROJECTNAME).auf2"&&if errorlevel 1 exit /b 1&&if exist "$(OUTPUTDIR)$(PROJECTNAME).dll" del /Q "$(OUTPUTDIR)$(PROJECTNAME).dll"]]></PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
         <PostBuildEventExecuteWhen>Always</PostBuildEventExecuteWhen>
     </PropertyGroup>
@@ -162,10 +160,7 @@ if exist "$(OUTPUTDIR)$(PROJECTNAME).dll" del /Q "$(OUTPUTDIR)$(PROJECTNAME).dll
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent><![CDATA[copy /Y "$(OUTPUTDIR)$(PROJECTNAME).dll" "$(OUTPUTDIR)$(PROJECTNAME).auf2"
-if errorlevel 1 exit /b 1
-if exist "$(OUTPUTDIR)$(PROJECTNAME).dll" del /Q "$(OUTPUTDIR)$(PROJECTNAME).dll"
-if exist "$(OUTPUTDIR)$(PROJECTNAME).rsm" del /Q "$(OUTPUTDIR)$(PROJECTNAME).rsm"]]></PostBuildEvent>
+        <PostBuildEvent><![CDATA[copy /Y "$(OUTPUTDIR)$(PROJECTNAME).dll" "$(OUTPUTDIR)$(PROJECTNAME).auf2"&&if errorlevel 1 exit /b 1&&if exist "$(OUTPUTDIR)$(PROJECTNAME).dll" del /Q "$(OUTPUTDIR)$(PROJECTNAME).dll"&&if exist "$(OUTPUTDIR)$(PROJECTNAME).rsm" del /Q "$(OUTPUTDIR)$(PROJECTNAME).rsm"]]></PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
         <PostBuildEventExecuteWhen>Always</PostBuildEventExecuteWhen>
     </PropertyGroup>

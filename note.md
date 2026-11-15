@@ -1,4 +1,28 @@
-﻿## 2026-11-09 最新仕様：カメラ内ライブビューのみ
+﻿## 2026-11-15 PhotoShot用Setup・配布ZIP
+
+- ユーザー指示で SYNC_ParticleFX/setup を参考に、旧Nicomea用だったSetupをPhotoShot専用へ更新。
+- Setup/make_release_zip.bat からWindows PowerShellで同名ps1を実行。既定入力は正式配置先の SYNC_PhotoShot.auf2。ビルド・本体起動・配備・GitHub公開は行わない。
+- Setup/SYNC_PhotoShot.zip を作成し、Setup/SYNC_PhotoShot.catalog.json の末尾バージョンへ収録AUF2のXXH3-128を自動記録。初期版v1.0.0、日付2026-11-15。
+- ZIPは SYNC_PhotoShot/ 配下の11ファイル。本体、配布README、LICENSE.md、THIRD_PARTY_NOTICES.md、関連するGPL/MIT/CC0・来歴文書を収録。MP3原本やテスト画像は含めない。
+- JSONのID・表示名・リポジトリ・ZIPパターン・コピー先・同梱ファイルの削除対象を照合する。元のLICENSE.mdに合わせ、独自部分と音源の条件は確認中の表記を維持。
+- 公式カタログのtemplate.jsonに従いimagesは空。画像はカタログ本体で Thumnail/Thumnail.gif を登録する。
+- xxhsum 0.8.4を同階層Nicomeaの既存開発ツールからコピー済み。Win64/Dependencies/xxHash-0.8.4/xxhsum.exe はGit管理外。
+- 別カレントディレクトリからのバッチ実行、既存ZIP置換、展開AUF2と原本のSHA256一致、XXH3-128一致、11ファイルとuninstallリストの一致を検証済み。入力欠落と不正ID時の停止・既存成果物保持も確認。
+- 元Setupの3ファイルは Tests/SetupMigration/Original_20261115_081236 に保存。検証記録は Tests/SetupMigration/Verify_2dfe06944c97450aad21492afc4f1db2/verification.json。
+- .gitignoreで配布ZIP・一時ファイルを除外し、作成バッチは追跡対象へ戻した。
+
+## 2026-11-15 スマートフォンの立体ケース描画
+
+- スマホ本体に保護ケースの厚み、左上のハイライト、右下の側面影、画面の接触影、側面ボタンを追加。
+- SYNC_SmartphoneRenderer.Draw の末尾 RaisedCase=True をスマートフォンだけで指定。既定Falseの共通枠は従来どおり。
+- 外形420x820 / 820x420とライブビューの撮影領域・UI座標を維持。縦横、本体色、回転、半透明の描画に対応。
+- GDI+の角丸・グラデーションで描画し、追加素材・画素ぼかし・新しい設定項目は不要。
+- Delphi 37.0 / Win64 のDebug・Releaseを Tests/SmartphoneDepth/Build 以下へ隔離ビルド成功。DCC_ExeOutputとDCC_DcuOutputを変更し、PostBuildEventを無効化した。
+- 両構成エラー0。既存MP3ライブラリの未使用代入ヒントH2077が各2件（MSBuildでは警告として集計）。変更した描画ユニットに警告なし。
+- 正規描画ユニットを使う単体EXEで12条件のPNGを生成し、縦横・黒白赤・回転・半透明・縮小・起き上がりを確認。縦横のライブビュー中央は変更前と画素一致。実AviUtl2での表示確認は未実施。
+- 検証資料はgit管理外の Tests/SmartphoneDepth/。正式配置済みauf2/DLLのSHA256、および既存変更のあるdprojを保持。既存Thumnail/も変更していない。
+
+## 2026-11-09 最新仕様：カメラ内ライブビューのみ
 
 - 撮影結果の写真表示/白枠/準備/キャッシュは廃止。以下の歴史的記録の写真準備手順は現行仕様ではない。
 - SourceのPreparation/PreparedStore/HostAPIは現行DPR/DPROJから除外。旧試験の参照資料としてファイルだけ残すが本体へリンクしない。
@@ -51,7 +75,7 @@ D:\aviutl2_v2.1.16\aviutl2.exe に変更した。
 - D:\DelphiProg\MyApp\SYNC_Nicomea の .dpr / .dproj を正解としてコピーした構造を保持する。
 - 必須の名称・ユニット参照以外の設定値、XML構造、ビルド後イベント方式を勝手に作り直さない。
 - 現在は通常 auf2、DLL境界は元と同じ3 exports。追加プラグインを作成・実行しない。
-- コピー元、ユーザー Mp3 原本、既存 Setup を変更しない。
+- コピー元、ユーザー Mp3 原本を変更しない。Setupは2026-11-15のユーザー指示でPhotoShot用へ更新済み。
 - グループ SYNC、名称「写真撮影」、プロジェクト名 SYNC_PhotoShot。
 - 現在の機能・操作・制約は README.md を正とする。旧 aux2 方式へ戻さない。
 
@@ -91,7 +115,7 @@ D:\aviutl2_v2.1.16\aviutl2.exe に変更した。
 
 ## Setup と検証
 
-- SetupはNicomea用旧設定のまま。PhotoShotの配布処理として実行しない。
+- SetupはPhotoShot用の配布ZIP作成処理。作成バッチとJSONはSetup/README.mdを参照。
 - 参照元のライセンスと来歴は Source/Lib/Smartphone と ThirdParty/MP3Decoder を参照。
 - 実機未確認の点と模擬試験の結果を区別する。追加テスト用pluginは禁止。
 - 復元バックアップ: Backup/BeforeReferenceRebuild_20261109_101022。

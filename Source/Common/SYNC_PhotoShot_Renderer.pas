@@ -338,8 +338,8 @@ begin
     Inner:=RenderPhotoShotView(Source,S,Pose,Round(Screen.Width),Round(Screen.Height));
     if S.CameraKind=0 then
     begin
-      // スマホの筐体・画面・既存UIは従来の描画順序と値を厳密に維持する。
-      Phone.Draw(G,Rect(0,0,W,H),S.Orientation,S.CameraColor,$FF080A0C,Inner,@Screen);
+      // 保護ケースの立体感はスマホだけに適用し、撮影領域とUI位置は共有する。
+      Phone.Draw(G,Rect(0,0,W,H),S.Orientation,S.CameraColor,$FF080A0C,Inner,@Screen,True);
       CameraUI(G,Screen,S.CameraKind,S.Orientation);
     end
     else

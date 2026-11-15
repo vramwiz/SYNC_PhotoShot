@@ -21,11 +21,12 @@ type
     destructor Destroy; override;
     // Target にスマホを描く。向きは 0=縦、1=横。色は不透明 RGB として使用する。
     // ScreenImage は借用し、角丸画面内へ伸縮表示する。nil の場合は背景色のみ。
+    // RaisedCase は既存の外形内に保護ケースの厚み・縁・ガラスの段差を描く。
     // 描画先の変換・クリップを復元する。引数の画像や Target を保持・解放しない。
     procedure Draw(Target: TGPGraphics; const Destination: TRect;
       Orientation: Integer; PhoneColor: ARGB = $FF303840;
       ScreenColor: ARGB = $FFFFFFFF; ScreenImage: TGPBitmap = nil;
-      ImageRect: PGPRectF = nil);
+      ImageRect: PGPRectF = nil; RaisedCase: Boolean = False);
     // Clipped は描画対象の映像内矩形。透明 PARGB 面を返す。空矩形では nil。
     // 戻り値は本インスタンス所有。次の呼出し／破棄まで有効で、呼出側は解放しない。
     // ScreenImage に以前返した描画面自身を渡さない。
@@ -116,9 +117,91 @@ begin
   end;
 end;
 
+// 不透明な指定色を基準に明暗を作る。黒・白のケースにも輪郭の明度差を残す。
+function CaseTone(Color, Tone: ARGB; Amount: Byte): ARGB;
+var
+  R, G, B, Weight, Opposite: Cardinal;
+begin
+  Weight := Amount;
+  Opposite := 255 - Weight;
+  R := (((Color shr 16) and $FF) * Opposite +
+    ((Tone shr 16) and $FF) * Weight + 127) div 255;
+  G := (((Color shr 8) and $FF) * Opposite +
+    ((Tone shr 8) and $FF) * Weight + 127) div 255;
+  B := ((Color and $FF) * Opposite + (Tone and $FF) * Weight + 127) div 255;
+  Result := $FF000000 or (R shl 16) or (G shl 8) or B;
+end;
+
+// 左上を光源とする面または輪郭。追加bitmapや画素単位のぼかしを作らない。
+procedure ShadeRound(Target: TGPGraphics; X, Y, W, H, Radius: Single;
+  Light, Dark: ARGB; StrokeWidth: Single = 0);
+var
+  Path: TGPGraphicsPath;
+  Brush: TGPLinearGradientBrush;
+  Pen: TGPPen;
+begin
+  Path := RoundPath(X, Y, W, H, Radius);
+  Brush := nil;
+  Pen := nil;
+  try
+    Brush := TGPLinearGradientBrush.Create(MakePoint(X, Y),
+      MakePoint(X + W, Y + H), Light, Dark);
+    if StrokeWidth > 0 then
+    begin
+      Pen := TGPPen.Create(Brush, StrokeWidth);
+      Target.DrawPath(Pen, Path);
+    end
+    else Target.FillPath(Brush, Path);
+  finally
+    Pen.Free;
+    Brush.Free;
+    Path.Free;
+  end;
+end;
+
+procedure DrawRaisedCase(Target: TGPGraphics; W, H: Integer; Color: ARGB);
+begin
+  // 外周の影、暗い側面、手前の丸いリップをずらして厚みを表す。
+  // 420x820 / 820x420 の内側だけを使い、半透明合成時にも外周を欠けさせない。
+  FillRound(Target, 3, 5, W - 4, H - 6, 43, $60000000);
+  ShadeRound(Target, 1, 1, W - 4, H - 4, 42,
+    CaseTone(Color, $FFFFFFFF, 80), CaseTone(Color, $FF000000, 200));
+  ShadeRound(Target, 1.75, 1.75, W - 5.5, H - 5.5, 41.25,
+    $B0FFFFFF, $D0000000, 1.5);
+  ShadeRound(Target, 4, 4, W - 12, H - 14, 39,
+    CaseTone(Color, $FFFFFFFF, 52), CaseTone(Color, $FF000000, 64));
+  ShadeRound(Target, 4.75, 4.75, W - 13.5, H - 15.5, 38.25,
+    CaseTone(Color, $FFFFFFFF, 120), CaseTone(Color, $FF000000, 140), 1.5);
+  // リップの内側は上・左が暗く、右・下が光を受ける凹み。
+  ShadeRound(Target, 9, 13, W - 21, H - 29, 34,
+    CaseTone(Color, $FF000000, 200), CaseTone(Color, $FFFFFFFF, 96));
+  FillRound(Target, 11, 15, W - 22, H - 30, 32, $FF06080B);
+  ShadeRound(Target, 12.5, 16.5, W - 25, H - 33, 30.5,
+    $FF020306, $FF7C8790, 1.5);
+  // ケースに一体化した側面ボタン。横向きでは長辺の上下へ移る。
+  if W > H then
+  begin
+    ShadeRound(Target, 176, 1, 68, 3.5, 1.75,
+      CaseTone(Color, $FFFFFFFF, 100), CaseTone(Color, $FF000000, 180));
+    ShadeRound(Target, 146, H - 6, 36, 3.5, 1.75, $FF07090C,
+      CaseTone(Color, $FFFFFFFF, 60));
+    ShadeRound(Target, 196, H - 6, 36, 3.5, 1.75, $FF07090C,
+      CaseTone(Color, $FFFFFFFF, 60));
+  end
+  else
+  begin
+    ShadeRound(Target, W - 6, 176, 3.5, 68, 1.75,
+      CaseTone(Color, $FFFFFFFF, 100), CaseTone(Color, $FF000000, 180));
+    ShadeRound(Target, 1, 146, 3.5, 36, 1.75,
+      CaseTone(Color, $FFFFFFFF, 60), $FF07090C);
+    ShadeRound(Target, 1, 196, 3.5, 36, 1.75,
+      CaseTone(Color, $FFFFFFFF, 60), $FF07090C);
+  end;
+end;
+
 procedure TSmartphoneRenderer.Draw(Target: TGPGraphics; const Destination: TRect;
   Orientation: Integer; PhoneColor, ScreenColor: ARGB; ScreenImage: TGPBitmap;
-  ImageRect: PGPRectF);
+  ImageRect: PGPRectF; RaisedCase: Boolean);
 var
   W, H: Integer;
   State, ImageState: GraphicsState;
@@ -133,8 +216,12 @@ begin
     Target.SetInterpolationMode(InterpolationModeHighQualityBicubic);
     Target.TranslateTransform(Destination.Left, Destination.Top);
     Target.ScaleTransform(Destination.Width / W, Destination.Height / H);
-    FillRound(Target, 1, 1, W - 2, H - 2, 42, $FF101418);
-    FillRound(Target, 3, 3, W - 6, H - 6, 40, PhoneColor or $FF000000);
+    if RaisedCase then DrawRaisedCase(Target, W, H, PhoneColor)
+    else
+    begin
+      FillRound(Target, 1, 1, W - 2, H - 2, 42, $FF101418);
+      FillRound(Target, 3, 3, W - 6, H - 6, 40, PhoneColor or $FF000000);
+    end;
     Screen := RoundPath(14, 18, W - 28, H - 36, 29);
     Target.SetClip(Screen, CombineModeIntersect);
     FillRound(Target, 14, 18, W - 28, H - 36, 29, ScreenColor or $FF000000);
@@ -150,6 +237,10 @@ begin
           Target.DrawImage(ScreenImage,ImageRect^);
         finally Target.Restore(ImageState); end;
       end;
+    // ガラスの接触影は端のみに置き、ライブビュー中央を曇らせない。
+    if RaisedCase then
+      ShadeRound(Target, 14.5, 18.5, W - 29, H - 37, 28.5,
+        $98000000, $28FFFFFF, 2);
     // 筐体に固定されたカメラ・スピーカーは横向き時に左辺へ移す。
     if W > H then
       FillRound(Target, 26, H / 2 - 42, 16, 84, 8, $FF101418)

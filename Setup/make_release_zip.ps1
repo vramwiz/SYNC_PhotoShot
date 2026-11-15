@@ -1,12 +1,15 @@
-param(
+﻿param(
     [string]$ReleaseDirectory,
     [string]$XxhsumPath
 )
 
+# SYNC_ParticleFX / SYNC_Mine由来。既存AUF2の梱包と末尾バージョンのハッシュ更新。
+# ビルド・ホスト起動・ネットワークへの公開は行わない。
+# Copyright (c) 2026 VRAMの魔術師 / SPDX-License-Identifier: GPL-3.0-only
 $ErrorActionPreference = 'Stop'
-$packageName = 'SYNC_Nicomea'
+$packageName = 'SYNC_PhotoShot'
 $projectDir = Split-Path -Parent $PSScriptRoot
-if (-not $ReleaseDirectory) { $ReleaseDirectory = Join-Path $projectDir 'Win64\Release' }
+if (-not $ReleaseDirectory) { $ReleaseDirectory = 'C:\ProgramData\aviutl2\Plugin\SYNC_PhotoShot' }
 $pluginName = "$packageName.auf2"
 $pluginPath = Join-Path $ReleaseDirectory $pluginName
 if (-not (Test-Path -LiteralPath $pluginPath -PathType Leaf)) {
@@ -30,9 +33,22 @@ $tempPlugin = "$tempBase-plugin.tmp"
 $tempZip = "$tempBase-zip.tmp"
 $tempCatalog = "$tempBase-catalog.tmp"
 $catalogBackup = "$tempBase-previous-catalog.tmp"
+$packageFiles = [ordered]@{
+    $pluginName = $tempPlugin
+    'README.md' = Join-Path $PSScriptRoot 'README.md'
+    'LICENSE.md' = Join-Path $projectDir 'LICENSE.md'
+    'THIRD_PARTY_NOTICES.md' = Join-Path $projectDir 'THIRD_PARTY_NOTICES.md'
+    'Source/Lib/Smartphone/LICENSE.SYNC_Mine.txt' = Join-Path $projectDir 'Source\Lib\Smartphone\LICENSE.SYNC_Mine.txt'
+    'ThirdParty/LICENSE.AviUtl2-SDK.txt' = Join-Path $projectDir 'ThirdParty\LICENSE.AviUtl2-SDK.txt'
+    'ThirdParty/LICENSE.SYNC_RhythmShooter.txt' = Join-Path $projectDir 'ThirdParty\LICENSE.SYNC_RhythmShooter.txt'
+    'ThirdParty/MP3Decoder/LICENSE.md' = Join-Path $projectDir 'ThirdParty\MP3Decoder\LICENSE.md'
+    'ThirdParty/MP3Decoder/provenance.json' = Join-Path $projectDir 'ThirdParty\MP3Decoder\provenance.json'
+    'ThirdParty/MP3Decoder/CORE_CHANGES.md' = Join-Path $projectDir 'ThirdParty\MP3Decoder\CORE_CHANGES.md'
+    'ThirdParty/MP3Decoder/PHOTOSHOT_RESOURCE_CHANGES.md' = Join-Path $projectDir 'ThirdParty\MP3Decoder\PHOTOSHOT_RESOURCE_CHANGES.md'
+}
 
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
-$lock = [Threading.Mutex]::new($false, 'Local\VRAMWIZ.SYNC_Nicomea.ReleaseZip')
+$lock = [Threading.Mutex]::new($false, 'Local\VRAMWIZ.SYNC_PhotoShot.ReleaseZip')
 $ownsLock = $false
 try {
     try { $ownsLock = $lock.WaitOne(0) }
@@ -41,11 +57,40 @@ try {
 
     $catalogSource = [IO.File]::ReadAllText($catalogPath)
     $catalog = [object[]]($catalogSource | ConvertFrom-Json)
+    if (-not $catalogSource.TrimStart().StartsWith('[') -or $catalog.Count -ne 1 -or
+        $catalog[0].id -cne "VRAMWIZ.$packageName" -or $catalog[0].name -cne '写真撮影') {
+        throw 'The catalog must be an array containing the PhotoShot package once.'
+    }
+    $source = $catalog[0].installer.source.github
+    if ($source.owner -cne 'vramwiz' -or $source.repo -cne $packageName -or
+        $source.pattern -cne '^SYNC_PhotoShot\.zip$') {
+        throw 'The catalog must download SYNC_PhotoShot.zip from vramwiz/SYNC_PhotoShot.'
+    }
+    $install = @($catalog[0].installer.install)
+    if ($install.Count -ne 3 -or $install[0].action -cne 'download' -or
+        $install[1].action -cne 'extract' -or $install[2].action -cne 'copy' -or
+        $install[2].from -cne "{tmp}/$packageName" -or
+        $install[2].to -cne "{pluginsDir}/$packageName") {
+        throw 'The catalog install destination does not match the ZIP layout.'
+    }
+    # ユーザーデータを巻き込まないよう、同梱したファイルだけを削除対象にする。
+    $expectedUninstall = @($packageFiles.Keys | ForEach-Object { "{pluginsDir}/$packageName/$_" })
+    $uninstall = @($catalog[0].installer.uninstall)
+    if ($uninstall.Count -ne $expectedUninstall.Count -or
+        @($uninstall | Where-Object action -cne 'delete').Count -ne 0 -or
+        @(Compare-Object $expectedUninstall @($uninstall.path) -CaseSensitive).Count -ne 0) {
+        throw 'The catalog uninstall files do not match the ZIP contents.'
+    }
+    if (@($catalog[0].version).Count -eq 0) { throw 'The catalog has no release version.' }
     $version = $catalog[0].version[-1]
+    if (-not $version.version -or $version.release_date -notmatch '^\d{4}-\d{2}-\d{2}$') {
+        throw 'Set a release tag and YYYY-MM-DD release_date in the last catalog version.'
+    }
+    [datetime]::ParseExact($version.release_date, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture) | Out-Null
     $pluginEntry = @($version.file | Where-Object path -ceq "{pluginsDir}/$packageName/$pluginName")
     if ($pluginEntry.Count -ne 1) { throw 'The last catalog version must list the installed AUF2 once.' }
 
-    # Hash the same AUF2 bytes that will go into the ZIP.
+    # ハッシュとZIPには同じコピーを使い、処理中の再ビルドによる不一致を防ぐ。
     Copy-Item -LiteralPath $pluginPath -Destination $tempPlugin
     $hashOutput = & $XxhsumPath -H128 --tag $tempPlugin
     if ($LASTEXITCODE -ne 0 -or ($hashOutput -join "`n") -notmatch ' = ([0-9a-f]{32})\s*\z') {
@@ -53,11 +98,8 @@ try {
     }
     $hash = $Matches[1].ToLowerInvariant()
 
-    $packageFiles = [ordered]@{
-        $pluginName = $tempPlugin
-        'README.md' = Join-Path $PSScriptRoot 'README.md'
-        'LICENSE' = Join-Path $projectDir 'LICENSE'
-        'THIRD_PARTY_NOTICES.md' = Join-Path $projectDir 'THIRD_PARTY_NOTICES.md'
+    foreach ($file in $packageFiles.Values) {
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Package file not found: $file" }
     }
     $zip = [IO.Compression.ZipFile]::Open($tempZip, [IO.Compression.ZipArchiveMode]::Create)
     try {

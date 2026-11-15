@@ -19,3 +19,8 @@ __history/
 *.tlog
 [Ll]og/
 [Ll]ogs/
+
+# Local release archives and packaging temporary files
+/Setup/*.zip
+/Setup/.release-*
+!/Setup/make_release_zip.bat

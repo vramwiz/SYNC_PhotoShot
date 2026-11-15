@@ -10,6 +10,7 @@ AviUtl2でカメラを構え、シャッターを切る演出を加えるフィ�
 
 - スマートフォン表示と、それ以外の全画面ファインダー表示の2系統。コンパクトデジタルカメラ・一眼レフ・インスタントカメラは撮影中の表示と音で区別します。
 - カメラ本体の位置・倍率・角度と、内部映像の移動・ズーム・ぼかし。
+- スマートフォンは保護ケースの厚み、縁のハイライト、側面と画面周囲の陰影で立体感を表現します。縦横表示と本体色に追従します。
 - 共通の「カメラ・枠色」。スマホ本体の色と、他カメラのファインダー枠に同じ色を使います。
 - カメラ別の表示や仮の撮影数値。実際のEXIFや測定値ではありません。
 - 登場・待機・シャッター・退場演出と内蔵MP3シャッター音。
@@ -21,6 +22,9 @@ Windows 64 bit、AviUtl2 2.1.15以降で使用します。
 AviUtl2を終了してから、SYNC_PhotoShot.auf2を次へ配置・更新してください。
 
 C:\ProgramData\aviutl2\Plugin\SYNC_PhotoShot\
+
+配布ZIPは `Setup/make_release_zip.bat` で作成します。ZIPで導入する場合は、展開した `SYNC_PhotoShot` フォルダーをAviUtl2の `Plugin` フォルダーへコピーしてください。
+配布・カタログ登録の手順は [Setup/README.md](Setup/README.md)、登録用JSONは [Setup/SYNC_PhotoShot.catalog.json](Setup/SYNC_PhotoShot.catalog.json) を参照してください。
 
 ## 使い方
 
