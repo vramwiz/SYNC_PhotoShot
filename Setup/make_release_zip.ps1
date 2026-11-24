@@ -40,14 +40,44 @@ $packageFiles = [ordered]@{
     'THIRD_PARTY_NOTICES.md' = Join-Path $projectDir 'THIRD_PARTY_NOTICES.md'
     'Source/Lib/Smartphone/LICENSE.SYNC_Mine.txt' = Join-Path $projectDir 'Source\Lib\Smartphone\LICENSE.SYNC_Mine.txt'
     'ThirdParty/LICENSE.AviUtl2-SDK.txt' = Join-Path $projectDir 'ThirdParty\LICENSE.AviUtl2-SDK.txt'
-    'ThirdParty/LICENSE.SYNC_RhythmShooter.txt' = Join-Path $projectDir 'ThirdParty\LICENSE.SYNC_RhythmShooter.txt'
-    'ThirdParty/MP3Decoder/LICENSE.md' = Join-Path $projectDir 'ThirdParty\MP3Decoder\LICENSE.md'
-    'ThirdParty/MP3Decoder/provenance.json' = Join-Path $projectDir 'ThirdParty\MP3Decoder\provenance.json'
-    'ThirdParty/MP3Decoder/CORE_CHANGES.md' = Join-Path $projectDir 'ThirdParty\MP3Decoder\CORE_CHANGES.md'
-    'ThirdParty/MP3Decoder/PHOTOSHOT_RESOURCE_CHANGES.md' = Join-Path $projectDir 'ThirdParty\MP3Decoder\PHOTOSHOT_RESOURCE_CHANGES.md'
 }
 
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+public static class PhotoShotReleaseResources
+{
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadLibraryEx(string file, IntPtr handle, uint flags);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindResource(IntPtr module, string name, IntPtr type);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool FreeLibrary(IntPtr module);
+
+    public static bool ContainsLegacyShutterResource(string file)
+    {
+        // Read the resource directory without running the DLL.
+        const uint LoadAsDataFile = 0x00000002;
+        const uint LoadAsImageResource = 0x00000020;
+        IntPtr module = LoadLibraryEx(file, IntPtr.Zero, LoadAsDataFile | LoadAsImageResource);
+        if (module == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try
+        {
+            string[] names = { "PHOTOSHOT_SMARTPHONE", "PHOTOSHOT_COMPACT",
+                               "PHOTOSHOT_DSLR", "PHOTOSHOT_INSTANT" };
+            foreach (string name in names)
+                if (FindResource(module, name, (IntPtr)10) != IntPtr.Zero) return true;
+            return false;
+        }
+        finally { FreeLibrary(module); }
+    }
+}
+'@
 $lock = [Threading.Mutex]::new($false, 'Local\VRAMWIZ.SYNC_PhotoShot.ReleaseZip')
 $ownsLock = $false
 try {
@@ -92,6 +122,9 @@ try {
 
     # ハッシュとZIPには同じコピーを使い、処理中の再ビルドによる不一致を防ぐ。
     Copy-Item -LiteralPath $pluginPath -Destination $tempPlugin
+    if ([PhotoShotReleaseResources]::ContainsLegacyShutterResource($tempPlugin)) {
+        throw 'The AUF2 contains legacy MP3 shutter resources. Build the current Win64 Release before packaging.'
+    }
     $hashOutput = & $XxhsumPath -H128 --tag $tempPlugin
     if ($LASTEXITCODE -ne 0 -or ($hashOutput -join "`n") -notmatch ' = ([0-9a-f]{32})\s*\z') {
         throw 'Could not calculate the AUF2 XXH3-128 hash.'

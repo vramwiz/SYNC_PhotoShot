@@ -1,10 +1,10 @@
 ﻿unit SYNC_PhotoShot_Audio;
 
-// 同梱 MP3 を初期化時にデコードし、ホストの絶対サンプル時刻から混合する。
-// 映像の段階時間では余韻を切らない。コールバック中にファイル読込・デコードしない。
+// 初期化時に4種類のシャッター音を合成し、ホストの絶対サンプル時刻を基準に混合する。
+// 音声コールバックは初期化済みの PCM を参照し、余韻まで既存音声に加算する。
 interface
 
-// DLL の RCDATA に埋め込んだユーザー指定4音を優先。旧配置の Mp3 は欠落時のみ互換読込。
+// 生成した4種類の PCM はプラグインが所有し、終了時に解放する。
 // 全処理はホストがコールバックを始める前に呼ぶ。終了時はホストの処理停止後に解放する。
 procedure InitializePhotoShotAudio;
 procedure ReleasePhotoShotAudio;
@@ -14,12 +14,9 @@ function PhotoShotProcAudio(Audio: Pointer): Byte; cdecl;
 
 implementation
 
-// IDE が主 .res を再生成しても音源が消えないよう、ユニット専用リソースをリンク。
-{$R SYNC_PhotoShot_Audio.res}
-
 uses
   System.SysUtils, System.Math, Winapi.Windows, AviUtl2FilterTypes,
-  PluginFilterTable, SYNC_PhotoShot_MP3, SYNC_PhotoShot_AudioMix,
+  PluginFilterTable, SYNC_PhotoShot_ShutterSound, SYNC_PhotoShot_AudioMix,
   SYNC_PhotoShot_Parameters, SYNC_PhotoShot_Timeline;
 
 type
@@ -34,40 +31,24 @@ type
   end;
 
 var
-  Sounds: array[0..3] of TPhotoShotPCM;
+  Sounds: array[TPhotoShotShutterKind] of TArray<Single>;
   VolumeItem: TFILTER_ITEM_TRACK;
   AudioGroup: TFILTER_ITEM_GROUP;
 
 procedure InitializePhotoShotAudio;
-const
-  Names: array[0..3] of string = ('スマホ.mp3','コンデジ.mp3','一眼レフ.mp3','インスタントカメラ.mp3');
-  ResourceNames: array[0..3] of string = ('PHOTOSHOT_SMARTPHONE','PHOTOSHOT_COMPACT','PHOTOSHOT_DSLR','PHOTOSHOT_INSTANT');
 var
-  Buffer: array[0..32767] of WideChar;
-  Base: string;
-  I: Integer;
+  Kind: TPhotoShotShutterKind;
 begin
-  GetModuleFileName(HInstance, Buffer, Length(Buffer));
-  Base := ExtractFilePath(string(Buffer)) + 'Mp3\';
-  for I := 0 to 3 do
-  begin
-    Sounds[I] := Default(TPhotoShotPCM);
-    try
-      if FindResource(HInstance, PChar(ResourceNames[I]), RT_RCDATA) <> 0 then
-        Sounds[I] := DecodePhotoShotMP3Resource(HInstance, ResourceNames[I])
-      else
-        Sounds[I] := DecodePhotoShotMP3(Base + Names[I]);
-    except
-      on E: Exception do
-        OutputDebugString(PChar('SYNC_PhotoShot MP3: ' + E.Message));
-    end;
-  end;
+  for Kind := Low(TPhotoShotShutterKind) to High(TPhotoShotShutterKind) do
+    Sounds[Kind] := SynthesizePhotoShotShutter(Kind);
 end;
 
 procedure ReleasePhotoShotAudio;
-var I: Integer;
+var
+  Kind: TPhotoShotShutterKind;
 begin
-  for I := 0 to 3 do Sounds[I] := Default(TPhotoShotPCM);
+  for Kind := Low(TPhotoShotShutterKind) to High(TPhotoShotShutterKind) do
+    Sounds[Kind] := nil;
 end;
 
 procedure RegisterPhotoShotAudioParameter(IncludeGroup: Boolean);
@@ -80,7 +61,8 @@ function PhotoShotProcAudio(Audio: Pointer): Byte; cdecl;
 var
   A: PPhotoShotAudioProc;
   S: TPhotoShotSettings;
-  Kind, Channel, N, TargetRate: Integer;
+  Kind: TPhotoShotShutterKind;
+  Channel, N, TargetRate: Integer;
   StartSample, TailSample: Int64;
   Samples: TArray<Single>;
 begin
@@ -91,24 +73,25 @@ begin
       not Assigned(A^.GetSampleData) or not Assigned(A^.SetSampleData) then Exit;
     if VolumeItem.Value <= 0 then Exit;
     S := ReadPhotoShotParameters(A^.Scene^.Rate, A^.Scene^.Scale);
-    Kind := EnsureRange(S.CameraKind, 0, 3);
-    if Length(Sounds[Kind].Samples) = 0 then Exit;
+    Kind := TPhotoShotShutterKind(EnsureRange(S.CameraKind,
+      Ord(Low(TPhotoShotShutterKind)), Ord(High(TPhotoShotShutterKind))));
+    if Length(Sounds[Kind]) = 0 then Exit;
     N := A^.Object_^.SampleNum;
     TargetRate := A^.Scene^.SampleRate;
     if (N <= 0) or (N > 1048576) or (TargetRate <= 0) then Exit;
     StartSample := PhotoShotShutterSample(S.EnterFrames,S.WaitFrames,
       A^.Scene^.Rate,A^.Scene^.Scale,TargetRate);
-    TailSample := StartSample + Ceil(Sounds[Kind].FrameCount *
-      (Double(TargetRate) / Sounds[Kind].SampleRate));
+    TailSample := StartSample + Ceil((Length(Sounds[Kind]) div 2) *
+      (Double(TargetRate) / PhotoShotShutterSampleRate));
     if (A^.Object_^.SampleIndex >= TailSample) or
       (A^.Object_^.SampleIndex + N <= StartSample) then Exit;
     SetLength(Samples,N);
     for Channel := 0 to Min(1,A^.Object_^.ChannelNum-1) do
     begin
       A^.GetSampleData(@Samples[0],Channel);
-      MixPhotoShotChannel(Samples,Sounds[Kind].Samples,Channel,
+      MixPhotoShotChannel(Samples,Sounds[Kind],Channel,
         A^.Object_^.SampleIndex,StartSample,VolumeItem.Value,
-        Sounds[Kind].SampleRate,TargetRate);
+        PhotoShotShutterSampleRate,TargetRate);
       A^.SetSampleData(@Samples[0],Channel);
     end;
   except

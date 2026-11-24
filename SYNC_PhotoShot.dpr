@@ -5,16 +5,9 @@
 {$ALIGN 8}
 
 uses
-  MP3Types in 'Source\Lib\Audio\Core\MP3Types.pas',
-  MP3ScaleFactors in 'Source\Lib\Audio\Core\MP3ScaleFactors.pas',
-  MP3Layer3 in 'Source\Lib\Audio\Core\MP3Layer3.pas',
-  MP3Huffman in 'Source\Lib\Audio\Core\MP3Huffman.pas',
-  MP3Frame in 'Source\Lib\Audio\Core\MP3Frame.pas',
-  MP3BitStream in 'Source\Lib\Audio\Core\MP3BitStream.pas',
-  SYNC_PhotoShot_MP3 in 'Source\Lib\Audio\SYNC_PhotoShot_MP3.pas',
-  MP3Decoder in 'Source\Lib\Audio\MP3Decoder.pas',
   SYNC_PhotoShot_Audio in 'Source\Plugin\Filter\SYNC_PhotoShot_Audio.pas',
   SYNC_PhotoShot_AudioMix in 'Source\Common\SYNC_PhotoShot_AudioMix.pas',
+  SYNC_PhotoShot_ShutterSound in 'Source\Common\SYNC_PhotoShot_ShutterSound.pas',
   SYNC_PhotoShot_Parameters in 'Source\Plugin\Filter\SYNC_PhotoShot_Parameters.pas',
   SYNC_PhotoShot_Renderer in 'Source\Common\SYNC_PhotoShot_Renderer.pas',
   SYNC_PhotoShot_Capture in 'Source\Common\SYNC_PhotoShot_Capture.pas',

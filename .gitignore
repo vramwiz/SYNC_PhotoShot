@@ -28,3 +28,8 @@ __history/
 # Local shutter sound sources and build copies
 /Mp3/*.[mM][pP]3
 /Win64/*/Mp3/*.[mM][pP]3
+
+# Local resources from legacy MP3-based releases
+/Source/Plugin/Filter/SYNC_PhotoShot_Audio.res
+/Backup/ResourceUpdate_20261109_101544_390/SYNC_PhotoShot.res
+/Backup/ResourceUpdate_20261109_101614_823/SYNC_PhotoShot_Audio.res

@@ -9,7 +9,7 @@ Windows 64bit / AviUtl2 2.1.15以降を対象とします。
 2. `SYNC_PhotoShot.zip` を展開し、中の `SYNC_PhotoShot` フォルダーを `C:\ProgramData\aviutl2\Plugin` へコピーします。
 3. AviUtl2を起動し、対象映像に「SYNC」グループの「写真撮影」を追加します。
 
-更新も同じ場所へ上書きします。シャッター音はプラグインに内蔵しているため、音源ファイルを別に配置する必要はありません。
+更新も同じ場所へ上書きします。シャッター音はプラグインが初期化時に合成します。
 
 ## 使い方
 
@@ -34,8 +34,8 @@ AviUtl2を終了し、このZIPに同梱されたファイルを削除します�
 ## ライセンス・ソース
 
 本体と音源の適用条件は `LICENSE.md`、外部由来コードの出典と適用条件は `THIRD_PARTY_NOTICES.md` を参照してください。
-GPL v3、MIT、CC0-1.0の関連文書を元と同じ相対パスで同梱しています。
-PhotoShot独自コードは GNU General Public License v3（GPL-3.0-only）で公開しています。Magnificで生成したシャッター音はプラグインの機能として内蔵しており、配布ZIPに単体のMP3ファイルは含まれません。
+GPL v3とAviUtl2 SDKのMITライセンス文書を元と同じ相対パスで同梱しています。
+PhotoShot独自コードは GNU General Public License v3（GPL-3.0-only）で公開しています。カメラ別のシャッター音はプラグインが数式から生成し、作品の音声にミックスします。
 ソース公開先: [vramwiz/SYNC_PhotoShot](https://github.com/vramwiz/SYNC_PhotoShot)
 
 ## 配布ZIPの作成・カタログ登録（開発用）
@@ -55,7 +55,7 @@ PhotoShot独自コードは GNU General Public License v3（GPL-3.0-only）で�
 ```
 
 作業ディレクトリに依存せず、バッチのあるSetupフォルダーにZIPを出力します。
-バッチは既存AUF2の梱包とローカルJSONのハッシュ更新を行います。ビルド・本体起動・GitHubへの公開は別途行います。
+バッチは合成音に対応したAUF2を梱包し、ローカルJSONのハッシュを更新します。旧MP3リソースがあるAUF2は検出して停止します。ビルド・本体起動・GitHubへの公開は別途行います。
 同梱対象を変更するときはスクリプトの `$packageFiles` とJSONの `installer.uninstall` を合わせて変更してください。不一致ならZIPを置き換える前に停止します。
 
 ZIP内は `SYNC_PhotoShot/` の下にAUF2、このREADME、`LICENSE.md`、`THIRD_PARTY_NOTICES.md` と次の文書を収録します。
@@ -63,11 +63,6 @@ ZIP内は `SYNC_PhotoShot/` の下にAUF2、このREADME、`LICENSE.md`、`THIRD
 ```text
 Source/Lib/Smartphone/LICENSE.SYNC_Mine.txt
 ThirdParty/LICENSE.AviUtl2-SDK.txt
-ThirdParty/LICENSE.SYNC_RhythmShooter.txt
-ThirdParty/MP3Decoder/LICENSE.md
-ThirdParty/MP3Decoder/provenance.json
-ThirdParty/MP3Decoder/CORE_CHANGES.md
-ThirdParty/MP3Decoder/PHOTOSHOT_RESOURCE_CHANGES.md
 ```
 
 単体のMP3ファイル、テスト画像、開発用ソース・DCU・DLL、旧Setup設定はZIPへ含めません。

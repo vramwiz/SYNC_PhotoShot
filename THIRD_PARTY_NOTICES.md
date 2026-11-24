@@ -18,27 +18,10 @@
 - PhotoShot 用の名称、参照、登録項目、必要な API と配置先を適応しています。
 - ビルド後イベントの一行ずつの記述方式は、ユーザー作成の Syncroh2_Extension2 を参考にしています。
 
-## MP3 デコーダー
+## 旧版の MP3 デコーダー
 
-### 復号コア
-
-- 上流：[gustavoeenriquez/delphi-libraries](https://github.com/gustavoeenriquez/delphi-libraries)
-- 元実装：[lieff/minimp3](https://github.com/lieff/minimp3)
-- 条件：CC0 1.0 Universal。[CC0 原文](https://creativecommons.org/publicdomain/zero/1.0/legalcode)
-- 対象：`Source/Lib/Audio/Core/` の 6 ユニット。SYNC_RhythmShooter 経由で取得。
-- 上流コミット：`849dbaf1892486a6dc5f1ebb555c949a6c4dd4d9`
-- 保持文書：[上流 LICENSE.md](ThirdParty/MP3Decoder/LICENSE.md)、[provenance.json](ThirdParty/MP3Decoder/provenance.json)、[CORE_CHANGES.md](ThirdParty/MP3Decoder/CORE_CHANGES.md)。
-- 保持した上流 LICENSE はライブラリ集全体の文書です。そこで挙げられた Opus / G.729 / PDF 等を PhotoShot が含むことを示すものではありません。
-
-### SYNC_RhythmShooter 由来の統合コード
-
-- 出典：[vramwiz/SYNC_RhythmShooter](https://github.com/vramwiz/SYNC_RhythmShooter)
-- 表示：Copyright (c) 2026 VRAMの魔術師
-- 参考元プロジェクトの条件：MIT。本文：[LICENSE.SYNC_RhythmShooter.txt](ThirdParty/LICENSE.SYNC_RhythmShooter.txt)
-- 対象：`Source/Lib/Audio/MP3Decoder.pas` など参考元から持ち込んだ統合部分。コアの CC0 を変更しません。
-- PhotoShot では借用ストリームからの復号を追加し、専用ラッパーから埋込リソースを読み込みます。
-- 変更記録：[PHOTOSHOT_RESOURCE_CHANGES.md](ThirdParty/MP3Decoder/PHOTOSHOT_RESOURCE_CHANGES.md)。
-- FFmpeg は実行時依存でも同梱コンポーネントでもありません。
+旧版で使用したCC0の復号コアとMITの統合コードの来歴は、ソースリポジトリに保存しています。
+[旧版のMP3デコーダー文書](https://github.com/vramwiz/SYNC_PhotoShot/tree/main/ThirdParty/MP3Decoder)
 
 ## AviUtl2 SDK
 
@@ -52,4 +35,4 @@ Delphi RTL と Windows GDI+ を使用します。各製品の利用・再配布�
 
 ## 音源と画像
 
-内蔵シャッター音は Magnific の有料プランで生成しました。音源の配布形態、暫定合成音、AI 生成画像の取り扱いは [LICENSE.md](LICENSE.md) を参照してください。
+現行版のシャッター音は初期化時にプログラムで合成します。合成音やリポジトリに保管する素材の取り扱いは [LICENSE.md](LICENSE.md) を参照してください。

@@ -1,4 +1,12 @@
-﻿## 2026-11-15 PhotoShot用Setup・配布ZIP
+﻿## 2026-11-24 シャッター音のプログラム合成
+
+- 現行版は初期化時に4種類の音を48 kHzのステレオPCMとして合成する。カメラ種別、シャッター時刻、音量、既存ミキサーを使う。
+- 現行DPR/DPROJから旧MP3デコーダーを除外し、フィルターの旧MP3埋め込み・ファイル読み込みを廃止した。旧音源を含むRES 3点はローカルに保管し、Git追跡から除外した。以下のMP3手順は旧版の記録。
+- 配布バッチは旧MP3リソース入りのAUF2を拒否する。現行版のZIPは6ファイル。新しい公開版のタグ・日付はリリース時にカタログJSONの末尾に追加する。
+- Delphi 37.0 / Win64のDebug・Releaseを隔離ビルドし、両構成とも警告・エラー0。SDK模擬ホストで4種のPCM、44.1/48 kHz、音量0、シーク時の一致を確認した。実AviUtl2での確認は未実施。
+- 検証成果物は Tests/ProceduralShutterBuild_20261124/。正式配置のAUF2と主RESはビルド前のSHA-256に一致。配布バッチの旧版拒否と既存ZIP・JSON保持も確認した。
+
+## 2026-11-15 PhotoShot用Setup・配布ZIP
 
 - ユーザー指示で SYNC_ParticleFX/setup を参考に、旧Nicomea用だったSetupをPhotoShot専用へ更新。
 - Setup/make_release_zip.bat からWindows PowerShellで同名ps1を実行。既定入力は正式配置先の SYNC_PhotoShot.auf2。ビルド・本体起動・配備・GitHub公開は行わない。

@@ -1,4 +1,6 @@
-# PhotoShot MP3 decoder integration
+# Legacy PhotoShot MP3 decoder integration
+
+The current plugin synthesizes its shutter sounds in `Source/Common/SYNC_PhotoShot_ShutterSound.pas`. This directory preserves the decoder used by earlier releases.
 
 Copied from D:\DelphiProg\MyApp\SYNC_RhythmShooter on 2026-11-09.
 The current reference project uses a pure Delphi decoder, not FFmpeg.
@@ -15,4 +17,4 @@ Decode during preparation, not inside render/audio callbacks.
 Cancellation raises EAbort; malformed streams raise EMP3DecodeError.
 No FFmpeg executable/DLL is needed or included for runtime use.
 
-The four shutter sounds were generated under a paid Magnific plan and are embedded in the dedicated audio resource. The release ZIP carries them as part of the plugin, with no separate MP3 files. See ../../../LICENSE.md and ../../../THIRD_PARTY_NOTICES.md. Any synthesized verification signals under Tests/MP3 are not product shutter sounds.
+Earlier releases used four sounds generated under a paid Magnific plan in a dedicated audio resource. Their accompanying release documents describe the terms for those sounds. Synthesized verification signals under Tests/MP3 are test inputs.

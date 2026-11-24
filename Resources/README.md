@@ -1,4 +1,6 @@
-﻿# PhotoShot MP3 リソース組込み
+﻿# 旧版の PhotoShot MP3 リソース組込み
+
+現行版のシャッター音は `Source/Common/SYNC_PhotoShot_ShutterSound.pas` で合成します。以下は旧版の組込み手順と検証記録です。
 
 ユーザー指定 Mp3 フォルダーの4音を、そのまま専用リソースに埋め込みます。
 
