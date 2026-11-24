@@ -24,3 +24,7 @@ __history/
 /Setup/*.zip
 /Setup/.release-*
 !/Setup/make_release_zip.bat
+
+# Local shutter sound sources and build copies
+/Mp3/*.[mM][pP]3
+/Win64/*/Mp3/*.[mM][pP]3
