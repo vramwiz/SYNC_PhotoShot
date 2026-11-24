@@ -15,4 +15,4 @@ Decode during preparation, not inside render/audio callbacks.
 Cancellation raises EAbort; malformed streams raise EMP3DecodeError.
 No FFmpeg executable/DLL is needed or included for runtime use.
 
-Current shutter sounds are the four user-provided files under Mp3, embedded in the dedicated audio resource. Their redistribution permissions are not established by the decoder license. See ../../../LICENSE.md and ../../../THIRD_PARTY_NOTICES.md. Any synthesized verification signals under Tests/MP3 are not product shutter sounds.
+The four shutter sounds were generated under a paid Magnific plan and are embedded in the dedicated audio resource. The release ZIP carries them as part of the plugin, with no separate MP3 files. See ../../../LICENSE.md and ../../../THIRD_PARTY_NOTICES.md. Any synthesized verification signals under Tests/MP3 are not product shutter sounds.

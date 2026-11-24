@@ -1,12 +1,12 @@
-# ライセンス情報（公開前確認）
+# ライセンス情報
 
-この文書は既存コードと素材の権利関係を整理するもので、未確定の PhotoShot 独自部分に新たな利用許諾を与えるものではありません。
+Copyright (c) 2026 VRAMの魔術師
 
 ## 本体
 
-PhotoShot 独自部分の公開ライセンスは、権利者による最終確認待ちです。参考元の SYNC_Nicomea と、取り込んだ SYNC_Mine スマホ描画コードは GNU GPL v3 です。これらを組み込んだ配布物を MIT や CC0 のみとして扱うことはできません。GPL に基づく公開・対応するソースの提供など、組み合わせた配布物の条件を確認してから公開してください。
+PhotoShot 独自コードは GNU General Public License バージョン3（GPL-3.0-only）で公開します。参考元の SYNC_Nicomea および移植した SYNC_Mine のスマートフォン描画コードも GNU GPL v3 の対象です。[GPL v3 本文](Source/Lib/Smartphone/LICENSE.SYNC_Mine.txt)
 
-既存の GPL 対象部分に適用される許諾は、この「確認待ち」の記述によって変更されません。原文は [GPL v3 本文](Source/Lib/Smartphone/LICENSE.SYNC_Mine.txt) を参照してください。「またはそれ以降」の追加許諾はこの文書では新設していません。
+PhotoShot のソースコードは [vramwiz/SYNC_PhotoShot](https://github.com/vramwiz/SYNC_PhotoShot) で公開しています。
 
 ## 外部由来コード
 
@@ -14,8 +14,6 @@ PhotoShot 独自部分の公開ライセンスは、権利者による最終確�
 
 ## 音源・画像
 
-- `Mp3/` の 4 音とそれを内蔵する `SYNC_PhotoShot_Audio.res`：ユーザー提供素材です。作者・生成サービスの利用条件・再配布許諾は未確認です。利用許諾を推定しません。
+- 内蔵シャッター音4点は Magnific の有料プランで生成した効果音です。配布ZIPではシャッター機能の一部として `SYNC_PhotoShot.auf2` に収録しており、単体のMP3ファイルは含めていません。音源の取り扱いは生成サービスと使用モデルの規約に従います。[Magnific AI製品規約](https://www.magnific.com/legal/ai-products) · [ElevenLabs 効果音規約（Exhibit 4）](https://elevenlabs.io/creative-terms)
 - `Assets/Audio/`：初期の合成音です。同フォルダーの README に生成方法の記録がありますが、それだけで明示的な素材ライセンスが決まるわけではありません。
 - `Image/PhotoShot_Test_1920x1080.png`：本作業で用意した AI 生成の確認用画像です。素材の配布条件をコードのライセンスとは別に確定してください。
-
-公開前に、本体のライセンス選択と、公開対象の音源・画像の配布条件を確定する必要があります。

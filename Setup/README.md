@@ -33,9 +33,9 @@ AviUtl2を終了し、このZIPに同梱されたファイルを削除します�
 
 ## ライセンス・ソース
 
-本体と音源の確認状況は `LICENSE.md`、外部由来コードの出典と適用条件は `THIRD_PARTY_NOTICES.md` を参照してください。
+本体と音源の適用条件は `LICENSE.md`、外部由来コードの出典と適用条件は `THIRD_PARTY_NOTICES.md` を参照してください。
 GPL v3、MIT、CC0-1.0の関連文書を元と同じ相対パスで同梱しています。
-本体独自部分と内蔵音源の条件は既存文書にある最終確認待ちの状態を維持しています。
+PhotoShot独自コードは GNU General Public License v3（GPL-3.0-only）で公開しています。Magnificで生成したシャッター音はプラグインの機能として内蔵しており、配布ZIPに単体のMP3ファイルは含まれません。
 ソース公開先: [vramwiz/SYNC_PhotoShot](https://github.com/vramwiz/SYNC_PhotoShot)
 
 ## 配布ZIPの作成・カタログ登録（開発用）
@@ -70,4 +70,4 @@ ThirdParty/MP3Decoder/CORE_CHANGES.md
 ThirdParty/MP3Decoder/PHOTOSHOT_RESOURCE_CHANGES.md
 ```
 
-MP3原本、テスト画像、開発用ソース・DCU・DLL、旧Setup設定はZIPへ含めません。
+単体のMP3ファイル、テスト画像、開発用ソース・DCU・DLL、旧Setup設定はZIPへ含めません。

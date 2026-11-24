@@ -55,4 +55,5 @@ C:\ProgramData\aviutl2\Plugin\SYNC_PhotoShot\
 撮影日入力は今回の機能に含みません。
 
 [ライセンス情報](LICENSE.md) と [第三者コンポーネント](THIRD_PARTY_NOTICES.md) を参照してください。
-本体の公開ライセンスと音源・画像の再配布条件は最終確認中です。
+PhotoShot独自コードは GNU General Public License v3（GPL-3.0-only）で公開しています。
+シャッター音はプラグイン本体に内蔵しており、配布ZIPに単体のMP3ファイルは含まれません。
